@@ -7,7 +7,7 @@ in the z axis
 @author: nvthaomy
 """
 import numpy as np
-import argparse, os
+import argparse, os, sys
 import matplotlib.pyplot as plt
 import matplotlib
 
@@ -46,7 +46,9 @@ dz = (args.zmax -args.zmin)/float(args.ns)
 atomtype_ind,z_ind = getindices(args.input)
 rho = []
 for i in range(len(z)-1):
-    print "\nGetting density for {} < z < {}".format(z[i],z[i+1])
+    sys.stdout.write('\r')
+    sys.stdout.write("Getting density for {} < z < {}".format(z[i],z[i+1]))
+    sys.stdout.flush()
     local_rho = []
     frame = 0
     density = 0
