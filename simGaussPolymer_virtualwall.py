@@ -24,14 +24,14 @@ kb = 1.380649*10**(-23)*joules/kelvin* N_av #joules/kelvin/mol
 #1) SYSTEM DIMENSIONLESS PARAMETERS###
 #====================================
 #Molecules:
-NP = 8
-NS = 1808
-N_purefuidbox = 2000
+NP = 150
+NS = 2400
+N_purefluidbox = 6000
 DOP = 24
-NS = NS +N_purefuidbox
+NS = NS +N_purefluidbox
 N = NP*DOP + NS
 charge = 0.0 * elementary_charge
-reduced_density = 2000/27.7**3
+reduced_density = 6000/(40**3)
 #Bonded potential:
 l = 1 #reduced bond length
 k = 2 * 3000 #reduced force constant #multiply by 2 if use force constant from lammps
@@ -39,7 +39,7 @@ k = 2 * 3000 #reduced force constant #multiply by 2 if use force constant from l
 B = 1
 A_PP = -100
 A_SS = -100
-A_PS = -150
+A_PS = -130
 reduced_nonbondedCutoff = 10
 #wall potential
 kWall = 1000 *kilocalories_per_mole /angstrom**2
@@ -52,25 +52,25 @@ useNPT = False
 wallPotentialOn = True
 reduced_timestep = 0.005
 reduced_temp = 1
-reduced_Tdamp = 0.1 #time units
+reduced_Tdamp =100*reduced_timestep #time units
 reduced_pressure = 1
-reduced_Pdamp = 0.1 #time units
+reduced_Pdamp = 1000*reduced_timestep #time units
 #=====================
 #3) Simulation Options
 #=====================
-steps = 5e6
-equilibrationSteps = 50000 
-platform = openmm.Platform.getPlatformByName('OpenCL')
+steps = 2e8
+equilibrationSteps = 1e7
+platform = openmm.Platform.getPlatformByName('CUDA')
 platformProperties = {'Precision': 'mixed'}
 #platform = openmm.Platform.getPlatformByName('CPU')
 
-pdbReporter_warmup = app.pdbreporter.PDBReporter('trajectory_warmup.pdb', 1000)
-dataReporter_warmup = app.statedatareporter.StateDataReporter('log_warmup.txt', 100, totalSteps=steps,
+pdbReporter_warmup = app.pdbreporter.PDBReporter('trajectory_warmup.pdb', 10000)
+dataReporter_warmup = app.statedatareporter.StateDataReporter('log_warmup.txt', 500, totalSteps=steps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True,
     totalEnergy=True, temperature=True, volume=True, density=True, remainingTime=True,separator='\t')
 
-pdbReporter = app.pdbreporter.PDBReporter('trajectory.pdb', 1000)
-dataReporter = app.statedatareporter.StateDataReporter('log.txt', 100, totalSteps=steps,
+pdbReporter = app.pdbreporter.PDBReporter('trajectory.pdb', 50000)
+dataReporter = app.statedatareporter.StateDataReporter('log.txt', 1000, totalSteps=steps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True, 
     totalEnergy=True, temperature=True, volume=True, density=True,remainingTime=True, separator='\t')
 nonbondedMethod = openmm.CustomNonbondedForce.CutoffPeriodic
@@ -108,7 +108,7 @@ for index in range(NS):
 print("Total number of paricles in system: {}".format(system.getNumParticles()))
 # Set the periodic box vectors:
 number_density = reduced_density / sigma**3
-volume = (N-N_purefuidbox) * (number_density ** -1)
+volume = (N-N_purefluidbox) * (number_density ** -1)
 box_edge = volume ** (1. / 3.)
 buffer_l = buffer_fraction*box_edge
 z_wall1 = buffer_l
@@ -167,45 +167,49 @@ system.addForce(bondedForce)
 #=============================
 #create custom nonbonded force
 #=============================
-gaussianFunc = '-A*exp(-B*r^2)'
-Polymer = range(0,NP*DOP) #indices of all polymer atoms
-Solvent = range(NP*DOP,N) #indices of all solvent atoms
-#Polymer-polymer:
-PP_nonbondedForce = openmm.CustomNonbondedForce(gaussianFunc)
+Polymer = set()
+Solvent = set()
+for atom in top.atoms():
+        if atom.residue.name in ['Poly']:
+                Polymer.add(atom.index)
+        else:
+                Solvent.add(atom.index)
+all_atoms = Polymer.union(Solvent)
+
+#Polymer-polymer and Solvent-Solvent:
+PP_nonbondedForce = openmm.CustomNonbondedForce('-APP*exp(-B*r^2)')
 PP_nonbondedForce.setNonbondedMethod(nonbondedMethod)
 PP_nonbondedForce.addGlobalParameter('B',B/(sigma*sigma)) #length^-2
-PP_nonbondedForce.addGlobalParameter('A',A_PP*epsilon) #energy/mol
-for i in range(N):
-	PP_nonbondedForce.addParticle()
+PP_nonbondedForce.addGlobalParameter('APP',A_PP*epsilon) #energy/mol
 PP_nonbondedForce.addInteractionGroup(Polymer,Polymer)
+for i in range(system.getNumParticles()):
+        PP_nonbondedForce.addParticle()
 PP_nonbondedForce.setCutoffDistance(nonbondedCutoff)
 system.addForce(PP_nonbondedForce)
 print ("Number of particles in PP nonbonded force:{}".format(PP_nonbondedForce.getNumParticles()))
-#olvent-solvent:
-SS_nonbondedForce = openmm.CustomNonbondedForce(gaussianFunc)
+#Solvent-solvent:
+SS_nonbondedForce = openmm.CustomNonbondedForce('-ASS*exp(-B*r^2)')
 SS_nonbondedForce.setNonbondedMethod(nonbondedMethod)
 SS_nonbondedForce.addGlobalParameter('B',B/(sigma*sigma)) #length^-2
-SS_nonbondedForce.addGlobalParameter('A',A_SS*epsilon) #energy/mol
-for i in range(N):
-        SS_nonbondedForce.addParticle()
+SS_nonbondedForce.addGlobalParameter('ASS',A_SS*epsilon) #energy/mol
 SS_nonbondedForce.addInteractionGroup(Solvent,Solvent)
+for i in range(system.getNumParticles()):
+        SS_nonbondedForce.addParticle()
 SS_nonbondedForce.setCutoffDistance(nonbondedCutoff)
 system.addForce(SS_nonbondedForce)
 print ("Number of particles in SS nonbonded force:{}".format(SS_nonbondedForce.getNumParticles()))
+
 #Polymer-solvent:
-PS_nonbondedForce = openmm.CustomNonbondedForce(gaussianFunc)
+PS_nonbondedForce = openmm.CustomNonbondedForce('-APS*exp(-B*r^2)')
 PS_nonbondedForce.setNonbondedMethod(nonbondedMethod)
 PS_nonbondedForce.addGlobalParameter('B',B/(sigma*sigma)) #length^-2
-PS_nonbondedForce.addGlobalParameter('A',A_PS*epsilon) #energy/mol
-for i in range(N):
-        PS_nonbondedForce.addParticle()
+PS_nonbondedForce.addGlobalParameter('APS',A_PS*epsilon) #energy/mol
 PS_nonbondedForce.addInteractionGroup(Polymer,Solvent)
+for i in range(system.getNumParticles()):
+        PS_nonbondedForce.addParticle()
 PS_nonbondedForce.setCutoffDistance(nonbondedCutoff)
 system.addForce(PS_nonbondedForce)
 print ("Number of particles in PS nonbonded force:{}".format(PS_nonbondedForce.getNumParticles()))
-
-#force.setUseSwitchingFunction(True) # use a smooth switching function to avoid force discontinuities at cutoff
-#force.setSwitchingDistance(0.8*nonbondedCutoff)
 
 #===================
 #create virtual wall
@@ -283,9 +287,9 @@ else:
 
 print ("Initialize {} simulation".format(ensemble))
 print ("Running energy minimization")
-#simulation.minimizeEnergy()
-#simulation.context.setVelocitiesToTemperature(temperature*3)
-simulation.loadState('output_warmedup.xml')
+simulation.minimizeEnergy()
+simulation.context.setVelocitiesToTemperature(temperature*3)
+#simulation.loadState('output_warmedup.xml')
 simulation.reporters.append(pdbReporter_warmup)
 simulation.reporters.append(dataReporter_warmup)
 simulation.step(equilibrationSteps)

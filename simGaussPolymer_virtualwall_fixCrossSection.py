@@ -24,60 +24,56 @@ kb = 1.380649*10**(-23)*joules/kelvin* N_av #joules/kelvin/mol
 #1) SYSTEM DIMENSIONLESS PARAMETERS###
 #====================================
 #Molecules:
-NP = 250
-NS = 6000
+NP = 275
+NS = 4400
+N_purefluidbox = 6000
 DOP = 24
+NS = NS +N_purefluidbox
 N = NP*DOP + NS
 charge = 0.0 * elementary_charge
-reduced_density = 6000/(40**3)
-
+reduced_density = 6000/40.**3
 #Bonded potential:
 l = 1 #reduced bond length
 k = 2 * 3000 #reduced force constant #multiply by 2 if use force constant from lammps
-
 #Pair potential: u = -A exp(-Br^2)
 B = 1
 A_PP = -100
 A_SS = -100
 A_PS = -130
 reduced_nonbondedCutoff = 10
-
-#External potential:
-Uext = 10
-Nperiod = 1
-axis  = 0
-reduced_planeLoc = 0 
-reduced_L = 80. #box length along axis where potential is applied
+#wall potential
+kWall = 1000 *kilocalories_per_mole /angstrom**2
+#buffer_fraction = 0.5
+wallArea = 40.**2
 #======================
 #2) Integration Options
 #======================
 useNVT = True
 useNPT = False
+wallPotentialOn = True
 reduced_timestep = 0.005
 reduced_temp = 1
-reduced_Tdamp = 100*reduced_timestep #time units
+reduced_Tdamp =100*reduced_timestep #time units
 reduced_pressure = 1
-reduced_Pdamp = 1000*reduced_timestep #time units
+reduced_Pdamp =1000*reduced_timestep #time units
 #=====================
 #3) Simulation Options
 #=====================
-steps = 2e7
-equilibrationSteps = 1e7
-platform = openmm.Platform.getPlatformByName('CPU')
-#platformProperties = {'Precision': 'mixed'}
-#platform = openmm.Platform.getPlatformByName('CUDA')
-traj = 'trajectory.pdb'
-pdbReporter = app.pdbreporter.PDBReporter(traj, 20000)
+steps = 1e8
+equilibrationSteps = 1e7 
+platform = openmm.Platform.getPlatformByName('CUDA')
+platformProperties = {'Precision': 'mixed'}
+#platform = openmm.Platform.getPlatformByName('CPU')
+
+pdbReporter_warmup = app.pdbreporter.PDBReporter('trajectory_warmup.pdb', 10000)
+dataReporter_warmup = app.statedatareporter.StateDataReporter('log_warmup.txt', 1000, totalSteps=equilibrationSteps,
+    step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True,
+    totalEnergy=True, temperature=True, volume=True, density=True,remainingTime =True, separator='\t')
+
+pdbReporter = app.pdbreporter.PDBReporter('trajectory.pdb', 20000)
 dataReporter = app.statedatareporter.StateDataReporter('log.txt', 1000, totalSteps=steps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True, 
-    totalEnergy=True, temperature=True, volume=True, density=True, remainingTime=True,separator='\t')
-
-traj_warmup = 'trajectory_warmup.pdb'
-pdbReporter_warmup = app.pdbreporter.PDBReporter(traj_warmup, 5000)
-dataReporter_warmup= app.statedatareporter.StateDataReporter('log_warmup.txt', 1000, totalSteps=equilibrationSteps,
-    step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True,
-    totalEnergy=True, temperature=True, volume=True, density=True, remainingTime=True,separator='\t')
-
+    totalEnergy=True, temperature=True, volume=True, density=True,remainingTime =True, separator='\t')
 nonbondedMethod = openmm.CustomNonbondedForce.CutoffPeriodic
 ewaldErrorTolerance = 0.0001
 constraints = None
@@ -87,10 +83,7 @@ constraints = None
 #=============================
 ###Converting to real units###
 #=============================
-
-planeLoc =  reduced_planeLoc*sigma
 nonbondedCutoff = reduced_nonbondedCutoff*sigma
-L = reduced_L*sigma
 dt = reduced_timestep* (mass*sigma*sigma/epsilon)**(1/2)
 temperature = reduced_temp * epsilon/kb
 friction = 1/(reduced_Tdamp) * (epsilon/(mass*sigma*sigma))**(1/2)
@@ -101,7 +94,6 @@ print ('temperature:{}'.format(temperature))
 print ('pressure:{}'.format(pressure))
 print ('friction:{}'.format(friction))
 print ('barostat interval:{}'.format(barostatInterval))
-print ('nonbondedCutoff: {}'.format(nonbondedCutoff))
 #========================================
 # Create a system and add particles to it
 #========================================
@@ -117,17 +109,20 @@ for index in range(NS):
 print("Total number of paricles in system: {}".format(system.getNumParticles()))
 # Set the periodic box vectors:
 number_density = reduced_density / sigma**3
-volume = N * (number_density ** -1)
-if Uext == 0: #use cubic box if no external potential is applied
-	box_edge = [volume ** (1. / 3.)] * 3
-else: #use rectangular box where L is the length of box in the direction of the external potential
-	box_edge_short = (volume/L)**(1./2.)
-	box_edge = [box_edge_short]*3
-	box_edge[axis] = L
-	print ('Box dimensions {}'.format(box_edge))
-box_vectors = np.diag([edge/angstrom for edge in box_edge]) * angstroms
+volume = (N-N_purefluidbox) * (number_density ** -1) #volume of central box
+#box_edge = volume ** (1. / 3.)
+central_z = volume/(wallArea*sigma**2)
+buffer_l = (N_purefluidbox * (number_density ** -1))/(wallArea*sigma**2)/2
+z_wall1 = buffer_l
+z_wall2 = buffer_l + central_z
+box_z = 2*buffer_l + central_z
+box_x = (wallArea*sigma**2)**0.5
+box_y = box_x
+box_vectors = np.diag([box_x/angstrom,box_y/angstrom,box_z/angstrom]) * angstroms
 system.setDefaultPeriodicBoxVectors(*box_vectors)
-
+print ('Box vectors:\n{}'.format(box_vectors))
+print('Central box length: {}'.format(central_z/angstrom*angstrom))
+print('Number density: {}'.format(N/(box_x*box_y*box_z)*angstrom**3))
 #==================
 ##CREATE TOPOLOGY##
 #==================
@@ -177,14 +172,13 @@ system.addForce(bondedForce)
 #=============================
 #create custom nonbonded force
 #=============================
-#gaussianFunc = '-A*exp(-B*r^2)'
 Polymer = set()
 Solvent = set()
 for atom in top.atoms():
-	if atom.residue.name in ['Poly']:
-		Polymer.add(atom.index)
-	else:
-		Solvent.add(atom.index)
+        if atom.residue.name in ['Poly']:
+                Polymer.add(atom.index)
+        else:
+                Solvent.add(atom.index)
 all_atoms = Polymer.union(Solvent)
 
 #Polymer-polymer and Solvent-Solvent:
@@ -194,7 +188,7 @@ PP_nonbondedForce.addGlobalParameter('B',B/(sigma*sigma)) #length^-2
 PP_nonbondedForce.addGlobalParameter('APP',A_PP*epsilon) #energy/mol
 PP_nonbondedForce.addInteractionGroup(Polymer,Polymer)
 for i in range(system.getNumParticles()):
-	PP_nonbondedForce.addParticle()
+        PP_nonbondedForce.addParticle()
 PP_nonbondedForce.setCutoffDistance(nonbondedCutoff)
 system.addForce(PP_nonbondedForce)
 print ("Number of particles in PP nonbonded force:{}".format(PP_nonbondedForce.getNumParticles()))
@@ -222,28 +216,56 @@ PS_nonbondedForce.setCutoffDistance(nonbondedCutoff)
 system.addForce(PS_nonbondedForce)
 print ("Number of particles in PS nonbonded force:{}".format(PS_nonbondedForce.getNumParticles()))
 
-#force.setUseSwitchingFunction(True) # use a smooth switching function to avoid force discontinuities at cutoff
-#force.setSwitchingDistance(0.8*nonbondedCutoff)
-#===========================
-# Create external potential
-#===========================
-external={"U":Uext*epsilon,"NPeriod":Nperiod,"axis":axis ,"planeLoc":planeLoc}
-direction=['x','y','z']
-ax = external["axis"]
-#atomsInExtField = [elementMap[atomname]]
-if external["U"] != 0:
-	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
-	#energy_function = 'U*sin(2*{pi}*NPeriod*({axis}-{r0})/{L})'.format(pi=np.pi, L=box_edge[ax], r0=external["planeLoc"], axis=direction[ax])
-	energy_function = 'U*sin(2*pi*NPeriod*({axis}-r0)/L)'.format(axis=direction[ax])
-	fExt = openmm.CustomExternalForce(energy_function)
-	fExt.addGlobalParameter("U", external["U"])
-	fExt.addGlobalParameter("NPeriod", external["NPeriod"])
-	fExt.addGlobalParameter("pi",np.pi)
-	fExt.addGlobalParameter("r0",external["planeLoc"])
-	fExt.addGlobalParameter("L",box_edge[ax])
-	for i in Polymer:
-		fExt.addParticle( i,[] )
-	system.addForce(fExt)
+#===================
+#create virtual wall
+#===================
+if wallPotentialOn:
+        wall1 = openmm.CustomExternalForce('k/2*min(0,z-z_wall1)^2')
+        wall1.addGlobalParameter('k',kWall) #energy/mol/area
+        wall1.addGlobalParameter('z_wall1',z_wall1)
+
+        wall2 = openmm.CustomExternalForce('k/2*max(0,z-z_wall2)^2')
+        wall2.addGlobalParameter('k',kWall) #energy/mol/area
+        wall2.addGlobalParameter('z_wall2',z_wall2)
+
+        for i in Polymer: #only act on polymer
+                wall1.addParticle(i,[])
+        for i in Polymer:
+                wall2.addParticle(i,[])
+        system.addForce(wall1)
+        system.addForce(wall2)
+#=========================
+#Set up wall force report
+#=========================
+class ForceReporter(object):                                                  
+        def __init__(self, file, reportInterval):                             
+                self._out = open(file, 'w')                                   
+                self._fileout = file                                          
+                self._out.close()                                             
+                self._reportInterval = reportInterval                         
+        
+        def __del__(self):
+                pass
+                #self._out.close()                                            
+        def describeNextReport(self, simulation):
+                steps = self._reportInterval - simulation.currentStep%self._reportInterval 
+                return (steps, True, False, False, False, None) #(timesteps until next report, need positions, need velocities, need forces, need energies, wrapped positions)                                                             
+        def report(self, simulation, state):
+                self._out = open(self._fileout, 'a')                          
+                positions = state.getPositions(asNumpy=True)                  
+                f1=0.
+                f2=0.
+                kWall_dim = (kWall/N_av).value_in_unit(kilojoules/angstrom**2)
+                                                                              
+                for i in Polymer:                                             
+                        z = positions[i][2].value_in_unit(angstrom)           
+                        if z < z_wall1.value_in_unit(angstrom):               
+                                f1 += (kWall_dim*abs(z-z_wall1.value_in_unit(angstrom))) #force per particle = kJ/particle/angstrom
+                        if z > z_wall2.value_in_unit(angstrom):
+                                f2 += (kWall_dim*abs(z-z_wall2.value_in_unit(angstrom)))
+                #f1,f2: force exerted by wall 1 and wall 2 on solute atoms
+                self._out.write('%g %g\n' %(f1, f2))
+                self._out.close()
 
 #===========================
 ## Prepare the Simulation ##
@@ -251,13 +273,12 @@ if external["U"] != 0:
 if useNPT:
     system.addForce(openmm.MonteCarloBarostat(pressure, temperature, barostatInterval))
 integrator = openmm.LangevinIntegrator(temperature, friction, dt)
-simulation = app.Simulation(top,system, integrator, platform)
-#simulation = app.Simulation(top,system, integrator, platform,platformProperties)
-positions = box_edge * np.random.rand(N,3)
+#simulation = app.Simulation(top,system, integrator, platform)
+simulation = app.Simulation(top,system, integrator, platform,platformProperties)
+polymer_positions = [box_x/angstrom,box_y/angstrom,central_z/angstrom]*angstrom * np.random.rand(DOP*NP,3)+ [0,0,z_wall1/angstrom]*angstrom
+solvent_positions =[box_x/angstrom,box_y/angstrom,box_z/angstrom]*angstrom  * np.random.rand(system.getNumParticles()-DOP*NP,3)
+positions = np.append(polymer_positions,solvent_positions,axis=0)
 simulation.context.setPositions(positions)
-#Restart and Check point:
-#to load a saved state: simulation.loadState('output.xml')
-simulation.reporters.append(app.checkpointreporter.CheckpointReporter('checkpnt.chk', 1000))
 #===========================
 # Minimize and Equilibrate
 #===========================
@@ -266,17 +287,23 @@ if useNVT:
 else:
 	ensemble = "NPT"
 
+#simulation.loadState('output_warmedup.xml')
+#simulation.loadCheckpoint('checkpnt.chk')
 print ("Initialize {} simulation".format(ensemble))
 print ("Running energy minimization")
+simulation.reporters.append(app.checkpointreporter.CheckpointReporter('checkpnt.chk', 5000))
 simulation.minimizeEnergy(maxIterations=1000)
 simulation.context.setVelocitiesToTemperature(temperature*3)
-print ("Running equilibration")
+state = simulation.context.getState()
+print ("Periodic box vector: {}".format(state.getPeriodicBoxVectors()))
+simulation.reporters.append(pdbReporter_warmup)
 simulation.reporters.append(dataReporter_warmup)
 simulation.step(equilibrationSteps)
-simulation.saveState('output_warmup.xml')
-#simulation.loadState('output.xml')
+simulation.saveCheckpoint('checkpnt_warmedup.chk')
+simulation.saveState('output_warmedup.xml')
 
-t = md.load(traj_warmup)
+traj = 'trajectory_warmup.pdb'
+t = md.load(traj)  
 trajOut = traj.split('.')[0] + '.xyz'
 t.save(trajOut)
 
@@ -286,10 +313,13 @@ t.save(trajOut)
 print ("Running production")
 simulation.reporters.append(pdbReporter)
 simulation.reporters.append(dataReporter)
+simulation.reporters.append(ForceReporter('wallforces.txt', 100))
 simulation.currentStep = 0
 simulation.step(steps)
+simulation.saveCheckpoint('checkpnt.chk')
 simulation.saveState('output.xml')
 
-t = md.load(traj)
-trajOut = traj.split('.')[0] + '.xyz'
-t.save(trajOut)
+traj = 'trajectory.pdb' 
+t = md.load(traj)  
+trajOut = traj.split('.')[0] + '.xyz' 
+t.save(trajOut)  
