@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon May 27 09:36:41 2019
-currently written for lammps trajectory file where box is sliced 
-in the z axis
 @author: nvthaomy
 """
 import numpy as np
 import argparse, os, sys
 import matplotlib.pyplot as plt
 import matplotlib
-
+"""Plotting density profile in a specific axis, currently support lammpstrj and pdb formats
+   For volume fraction plot, assumes all species atoms have same size, and all slabs contain same number of atoms
+"""
 showPlots = True
 try:
     os.environ["DISPLAY"] #Detects if display is available
@@ -19,89 +19,214 @@ except KeyError:
     matplotlib.use('Agg') #Need to set this so doesn't try (and fail) to open interactive graphics window
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--input",required=True,help="traj file")
-parser.add_argument("-zmin",required=True, type=float,help="min value of z")
-parser.add_argument("-zmax",required=True, type=float, help="max value of z")     
-parser.add_argument("-ns",required=True, type = int, help="number of slabs")
-parser.add_argument("-N", required=True, type = float, help="number of atoms in molecule of interest")
-parser.add_argument("-at", nargs='+',required=True, help="atom types in molecule of interest")
+parser.add_argument("-i", "--input",required=True,help="traj file, .lammpstrj or .pdb")
+parser.add_argument("-x","--x",required=True, nargs = 2, type=float ,help="lower and upper bounds of box dimension in the x-direction")
+parser.add_argument("-y","--y",required=True, nargs = 2, type=float ,help="lower and upper bounds of box dimension in the y-direction")
+parser.add_argument("-z","--z",required=True, nargs = 2, type=float ,help="lower and upper bounds of box dimension in the z-direction")     
+parser.add_argument("-ns",default = 100, type = int, help="number of slabs")
+#parser.add_argument("-N", type = float, help="number of atoms in molecule of interest")
+parser.add_argument("-at", nargs='+',required=True, help="atom type for molecule of interest")
+parser.add_argument("-ax", required  = True, help="axis to perform slicing on, x or y or z")
+parser.add_argument("-stride",default = 1, type =int, help="trajectory is read every 'stride' frames")
 args = parser.parse_args()
 
-def getindices(traj):
+def getindices(traj,axis):
+    """get column indices for coordinate and atomtype in traj file"""
     trjFile = open(traj,'r')
     line =trjFile.readline()
     gotIndices = False
-    while len(line):
-        if "ITEM: ATOMS" in line:
-            atomtype_ind = (line.split()).index('type') -2
-            z_ind = (line.split()).index('z') -2
-            gotIndices = True
-        if gotIndices:
-            line = ""
-        line =trjFile.readline()
+    if trajFormat == 'lammpstrj':
+        while len(line):
+            if "ITEM: ATOMS" in line:
+                atomtype_ind = (line.split()).index('type') -2
+                z_ind = (line.split()).index(axis) -2
+                gotIndices = True
+            if gotIndices:
+                line = ""
+            line =trjFile.readline()
+
+        
     return atomtype_ind,z_ind
 
-z = np.linspace(args.zmin, args.zmax, args.ns+1,endpoint = True)
-dz = (args.zmax -args.zmin)/float(args.ns)
-atomtype_ind,z_ind = getindices(args.input)
-rho = []
-for i in range(len(z)-1):
-    sys.stdout.write('\r')
-    sys.stdout.write("Getting density for {} < z < {}".format(z[i],z[i+1]))
-    sys.stdout.flush()
-    local_rho = []
+def plot(zs,rho,vol_frac,axis):
+    z_plot = []
+    nrows= 2
+    ncols = 1
+    plt.figure()    
+    for i in range(len(zs)-1): #making z array for plotting 
+        zavg = (zs[i]+zs[i+1])/2
+        z_plot.append(zavg)
+        
+    plt.subplot(nrows,ncols,1)
+    plt.plot(z_plot,rho)
+    plt.ylabel('$\\rho_{monomer}$ (#/Vol)')
+    plt.xlabel(axis) 
+    plt.xlim(min(zs),max(zs))
+    plt.title('Density Profile',loc='center')
+    
+    plt.subplot(nrows,ncols,2)
+    plt.plot(z_plot,vol_frac)
+    plt.ylabel('$\\phi_{monomer}$ (#/Ntot)')
+    plt.xlabel(axis)
+    plt.xlim(min(zs),max(zs))
+    
+    plt.subplots_adjust(hspace=0.5)
+    plt.savefig('DensityProfile.png',dpi=500,transparent=True)
+    plt.show()                    
+    
+def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
+    "get density profile in the direction determined by ax_ind"
+    axis = ['x','y','z'][ax_ind] #axis in which density profile is calculated
+    L_slice = L[ax_ind] #lower and upper bounds of slicing direction 
+    L1 = L[min([i for i in range(3) if i != ax_ind])] #lower and upper bounds in other two directions
+    L2 = L[max([i for i in range(3) if i != ax_ind])]
+    boxVol = (L_slice[1] -L_slice[0]) * (L1[1]-L1[0]) * (L2[1]-L2[0])
+    zs = np.linspace(L_slice[0], L_slice[1], ns+1,endpoint = True)
+    dz = (L_slice[1] -L_slice[0])/float(ns)
+    slabVol = dz * (L1[1]-L1[0]) * (L2[1]-L2[0])
+    atomtype_ind,z_ind = getindices(traj,axis)
+    rho = np.zeros(len(zs)-1)
+    N_tot = 0
+    Nframe = 0
     frame = 0
-    density = 0
-    trjFile = open(args.input,'r')
+    nextFrame = 1
+    trjFile = open(traj,'r')
     line =trjFile.readline()
     while len(line): 
-        oldframe = frame
         if "ITEM: TIMESTEP" in line:
             frame  += 1
-            readBox = False
-            readingTraj = False
+            if frame == nextFrame:
+                Nframe += 1
+                readTraj = True  
+                sys.stdout.write("\rReading frame {}".format(frame)) 
+                sys.stdout.flush()
+                nextFrame += stride
+                readFrame = True
+            else: 
+                readFrame = False  
+            readTraj = False
             #print "Frame: {}".format(frame)
-        if "ITEM: BOX" in line:
-            readBox = True
-            counter = 0
-        if readBox and not "ITEM: BOX" in line: #get box size in x and y axis
-            if counter == 0:
-                x = float(line.split()[1])-float(line.split()[0])
-            elif counter == 1:
-                y = float(line.split()[1])-float(line.split()[0])
-            counter += 1
-            if counter > 1:
-                slabVol = dz * x * y
-                readBox = False
-        if oldframe != frame and frame !=1: #check if moving to the next frame
-            density = float(density)/slabVol/args.N #get number density of molecule in each slab
-            local_rho.append(density)
-            density = 0
         else:
             if "ITEM: ATOMS" in line:
-                readingTraj = True
-            if readingTraj and not "ITEM: ATOMS" in line:
+                readTraj = True
+            if readTraj and readFrame  and not "ITEM: ATOMS" in line:
+                if frame == 1: #count the total number of atoms
+                    N_tot += 1
                 atomtype = line.split()[atomtype_ind] 
                 current_z = float(line.split()[z_ind])
-                if atomtype in args.at and current_z >= z[i] and current_z <= z[i+1]:
-                    density += 1
+                if atomtype in at:
+                    if current_z < L_slice[0]: #if atom is outside of box, wrap it
+                        current_z = L_slice[1]-(L_slice[0]-current_z)
+                    elif current_z > L_slice[1]:
+                        current_z = L_slice[0]+(current_z - L_slice[1])
+                    bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
+                    if current_z <= bound:                        
+                        index = np.where(zs==bound)[0][0]-1
+                    else:
+                        index = np.where(zs==bound)[0][0]
+                #print('z: {}'.format(current_z))
+                #print('bound: {}'.format(bound))
+                #print ('index: {}'.format(index))
+                    rho[index] += 1       
         line =trjFile.readline()
-    local_rho = np.mean(np.array(local_rho)) #averaging slab density over trj frames
-    rho.append(local_rho)
+    vol_frac = rho/Nframe/(N_tot/boxVol*slabVol)
+    rho = rho/Nframe/slabVol
+    plot(zs,rho,vol_frac,axis)
+    return rho, vol_frac   
+  
+def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
+    axis = ['x','y','z'][ax_ind] 
+    L_slice = L[ax_ind] #lower and upper bounds of slicing direction 
+    L1 = L[min([i for i in range(3) if i != ax_ind])] #lower and upper bounds in other two directions
+    L2 = L[max([i for i in range(3) if i != ax_ind])]
+    boxVol = (L_slice[1] -L_slice[0]) * (L1[1]-L1[0]) * (L2[1]-L2[0])
+    zs = np.linspace(L_slice[0], L_slice[1], ns+1,endpoint = True)
+    dz = (L_slice[1] -L_slice[0])/float(ns)
+    slabVol = dz * (L1[1]-L1[0]) * (L2[1]-L2[0])
+    atomtype_ind = [12,15] #lower and upper indices of column that contains info about atom type in pdb format
+    if axis == 'x':
+        z_ind = [30,37] #lower and upper indices of column that contains info about coordinate in pdb format
+    elif axis == 'y':
+        z_ind = [38,45]
+    else:
+        z_ind = [46,53]
+    rho = np.zeros(len(zs)-1) #density, #atoms/Vol
+    #N_tot = np.zeros(len(zs)-1) #number of all atoms in each slice
+    N_tot = 0
+    vol_frac = np.zeros(len(zs)-1) 
+    readTraj = True
+    Nframe = 0
+    frame = 0
+    nextFrame = 1
+    trjFile = open(traj,'r')
+    line =trjFile.readline()
     
-z_plot = []
-for i in range(len(z)-1): #making z array for plotting 
-    zavg = (z[i]+z[i+1])/2
-    z_plot.append(zavg)
-plt.plot(z_plot,rho)
-plt.ylabel('$\\rho$')
-plt.xlabel('z')
-title = 'Density Profile'
-plt.title(title,loc='center')
-plt.savefig('DensityProfile.png',dpi=500,transparent=True)
-plt.show()                    
+    while len(line): 
+        if "MODEL" in line:
+            frame  += 1
+            #if frame != 1 and np.sum(N_tot)!= 0:
+             #   vol_frac += 
+            if frame == nextFrame:
+                Nframe += 1
+                readTraj = True  
+                sys.stdout.write("\rReading frame {}".format(frame)) 
+                sys.stdout.flush()
+                nextFrame += stride
+                #N_tot = np.zeros(len(zs)-1) #number of all atoms in each slice                 
+            else: 
+                readTraj = False
+        elif ("HETATM" in line or "ATOM" in line) and readTraj:
+            atomtype = line[atomtype_ind[0]:atomtype_ind[0]+1].split()[0]
+            current_z = float(line[z_ind[0]:z_ind[1]+1].split()[0]) 
+            if frame == 1:
+                N_tot +=1             
+            if current_z < L_slice[0]: #usually needed with traj from openMM. Wrap if atom is outside of box, wrap it
+                current_z = L_slice[1]-(L_slice[0]-current_z)
+            elif current_z > L_slice[1]:
+                current_z = L_slice[0]+(current_z - L_slice[1])
+            bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
+            if current_z <= bound:                        
+                index = np.where(zs==bound)[0][0]-1
+            else:
+                index = np.where(zs==bound)[0][0]
+            if atomtype in at:
+                rho[index] += 1
             
+        line =trjFile.readline()
+    vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
+    rho = rho/Nframe/slabVol
+    plot(zs,rho,vol_frac,axis)
+    return rho , vol_frac 
                     
+#Inputs
+ns = args.ns
+traj = args.input
+#N = args.N
+stride = args.stride
+trajFormat = traj.split('.')[-1]
+at = args.at 
+x = args.x
+y = args.y
+z = args.z
+L = [x,y,z]
+axis = ['x','y','z']
+ax_ind = axis.index(args.ax) #axis = [x,y,z]
+for i in L:
+    if len(i) != 2:
+        raise Exception('Wrong number of inputs for the lower and upper bounds of box dimensions')
+    if i[0]>i[1]: #check if bounds are in the correct order
+        imax = max(i)
+        i[0] = min(i)
+        i[1] = imax
+sys.stdout.write('Getting density profile across the {axis} axis \n'.format(axis=axis[ax_ind]))
+sys.stdout.write('Reading from {trajFormat} file every {stride} frame(s)\n'.format(stride = stride,trajFormat = trajFormat))
+sys.stdout.write('Number of bins: {}\n'.format(ns))
+if trajFormat == 'lammpstrj':
+    getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride)     
+elif trajFormat == 'pdb':        
+    getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride) 
+else:
+    raise Exception('Only support .lammpstrj and .pdb format')
                 
             
     
