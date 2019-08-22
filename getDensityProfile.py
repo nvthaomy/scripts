@@ -151,7 +151,6 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     else:
         z_ind = [46,53]
     rho = np.zeros(len(zs)-1) #density, #atoms/Vol
-    #N_tot = np.zeros(len(zs)-1) #number of all atoms in each slice
     N_tot = 0
     vol_frac = np.zeros(len(zs)-1) 
     readTraj = True
@@ -164,8 +163,13 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     while len(line): 
         if "MODEL" in line:
             frame  += 1
-            #if frame != 1 and np.sum(N_tot)!= 0:
-             #   vol_frac += 
+            if frame != 1 and np.sum(Natoms)!= 0:
+		vol_frac_temp = rho_temp/Natoms
+                vol_frac += vol_frac_temp
+		rho += rho_temp
+	    rho_temp = np.zeros(len(zs)-1) #density list of one frame
+	    vol_frac_temp = np.zeros(len(zs)-1) #volume fraction list of one frame
+	    Natoms = np.zeros(len(zs)-1) #number of all atoms in each slab
             if frame == nextFrame:
                 Nframe += 1
                 readTraj = True  
@@ -193,8 +197,10 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
                 rho[index] += 1
             
         line =trjFile.readline()
-    vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
+    #vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
+    vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
+    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     plot(zs,rho,vol_frac,axis)
     return rho , vol_frac 
                     
