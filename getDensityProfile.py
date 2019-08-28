@@ -164,6 +164,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
         if "MODEL" in line:
             frame  += 1
             if frame != 1 and np.sum(Natoms)!= 0:
+		rho_temp = float(rho_temp)
 		vol_frac_temp = rho_temp/Natoms
                 vol_frac += vol_frac_temp
 		rho += rho_temp
