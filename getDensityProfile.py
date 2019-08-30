@@ -165,6 +165,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             frame  += 1
             if frame != 1 and np.sum(Natoms)!= 0:
 		rho_temp = float(rho_temp)
+                Natoms = float(Natoms)
 		vol_frac_temp = rho_temp/Natoms
                 vol_frac += vol_frac_temp
 		rho += rho_temp
@@ -199,7 +200,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             
         line =trjFile.readline()
     #vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
-    vol_frac = vol_frac/Nframe
+    vol_frac = vol_frac/float(Nframe)
     rho = rho/Nframe/slabVol
     sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     plot(zs,rho,vol_frac,axis)
