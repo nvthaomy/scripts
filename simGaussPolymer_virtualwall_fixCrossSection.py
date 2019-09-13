@@ -65,12 +65,15 @@ platform = openmm.Platform.getPlatformByName('CUDA')
 platformProperties = {'Precision': 'mixed'}
 #platform = openmm.Platform.getPlatformByName('CPU')
 
-pdbReporter_warmup = app.pdbreporter.PDBReporter('trajectory_warmup.pdb', 10000)
+dcdReporter_warmup = app.dcdreporter.DCDReporter('trajectory_warmup.dcd',10000,enforcePeriodicBox=True)
+#pdbReporter_warmup = app.pdbreporter.PDBReporter('trajectory_warmup.pdb', 10000)
 dataReporter_warmup = app.statedatareporter.StateDataReporter('log_warmup.txt', 1000, totalSteps=equilibrationSteps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True,
     totalEnergy=True, temperature=True, volume=True, density=True,remainingTime =True, separator='\t')
 
-pdbReporter = app.pdbreporter.PDBReporter('trajectory.pdb', 20000)
+traj = 'trajectory.dcd'
+dcdReporter = app.dcdreporter.DCDReporter('trajectory.dcd',10000,enforcePeriodicBox=True)
+#pdbReporter = app.pdbreporter.PDBReporter('trajectory.pdb', 20000)
 dataReporter = app.statedatareporter.StateDataReporter('log.txt', 1000, totalSteps=steps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True, 
     totalEnergy=True, temperature=True, volume=True, density=True,remainingTime =True, separator='\t')
@@ -237,36 +240,39 @@ if wallPotentialOn:
 #=========================
 #Set up wall force report
 #=========================
-class ForceReporter(object):                                                  
-        def __init__(self, file, reportInterval):                             
-                self._out = open(file, 'w')                                   
-                self._fileout = file                                          
-                self._out.close()                                             
-                self._reportInterval = reportInterval                         
-        
+class ForceReporter(object):
+        def __init__(self, file, reportInterval):
+                self._out = open(file, 'w')
+                self._fileout = file
+                self._out.close()
+                self._reportInterval = reportInterval
+                self._hasInitialized = False
         def __del__(self):
                 pass
                 #self._out.close()                                            
         def describeNextReport(self, simulation):
-                steps = self._reportInterval - simulation.currentStep%self._reportInterval 
+                steps = self._reportInterval - simulation.currentStep%self._reportInterval
                 return (steps, True, False, False, False, None) #(timesteps until next report, need positions, need velocities, need forces, need energies, wrapped positions)                                                             
         def report(self, simulation, state):
-                self._out = open(self._fileout, 'a')                          
-                positions = state.getPositions(asNumpy=True)                  
-                f1=0.
-                f2=0.
-                kWall_dim = (kWall/N_av).value_in_unit(kilojoules/angstrom**2)
-                                                                              
-                for i in Polymer:                                             
-                        z = positions[i][2].value_in_unit(angstrom)           
-                        if z < z_wall1.value_in_unit(angstrom):               
-                                f1 += (kWall_dim*abs(z-z_wall1.value_in_unit(angstrom))) #force per particle = kJ/particle/angstrom
-                        if z > z_wall2.value_in_unit(angstrom):
-                                f2 += (kWall_dim*abs(z-z_wall2.value_in_unit(angstrom)))
-                #f1,f2: force exerted by wall 1 and wall 2 on solute atoms
-                self._out.write('%g %g\n' %(f1, f2))
-                self._out.close()
+            self._out = open(self._fileout, 'a')
+            if not self._hasInitialized: #writing header
+                headers = "# f1 f2\n"
+                self._out.write(headers)
+                self._hasInitialized = True
+            positions = state.getPositions(asNumpy=True)
+            f1=0.
+            f2=0.
+            kWall_dim = (kWall/N_av).value_in_unit(kilojoules/angstrom**2)
 
+            for i in Polymer:
+                z = positions[i][2].value_in_unit(angstrom)
+                if z < z_wall1.value_in_unit(angstrom):
+                    f1 += (kWall_dim*abs(z-z_wall1.value_in_unit(angstrom))) #force per particle = kJ/particle/angstrom
+                if z > z_wall2.value_in_unit(angstrom):
+                    f2 += (kWall_dim*abs(z-z_wall2.value_in_unit(angstrom)))
+                #f1,f2: force exerted by wall 1 and wall 2 on solute atoms
+            self._out.write('%g %g\n' %(f1, f2))
+            self._out.close()
 #===========================
 ## Prepare the Simulation ##
 #===========================
@@ -279,6 +285,10 @@ polymer_positions = [box_x/angstrom,box_y/angstrom,central_z/angstrom]*angstrom 
 solvent_positions =[box_x/angstrom,box_y/angstrom,box_z/angstrom]*angstrom  * np.random.rand(system.getNumParticles()-DOP*NP,3)
 positions = np.append(polymer_positions,solvent_positions,axis=0)
 simulation.context.setPositions(positions)
+
+initialpdb = 'trajectory_init.pdb'
+app.PDBFile.writeModel(simulation.topology, positions, open(initialpdb,'w'))
+
 #===========================
 # Minimize and Equilibrate
 #===========================
@@ -296,22 +306,16 @@ simulation.minimizeEnergy(maxIterations=1000)
 simulation.context.setVelocitiesToTemperature(temperature*3)
 state = simulation.context.getState()
 print ("Periodic box vector: {}".format(state.getPeriodicBoxVectors()))
-simulation.reporters.append(pdbReporter_warmup)
+simulation.reporters.append(dcdReporter_warmup)
 simulation.reporters.append(dataReporter_warmup)
 simulation.step(equilibrationSteps)
 simulation.saveCheckpoint('checkpnt_warmedup.chk')
 simulation.saveState('output_warmedup.xml')
-
-traj = 'trajectory_warmup.pdb'
-t = md.load(traj)  
-trajOut = traj.split('.')[0] + '.xyz'
-t.save(trajOut)
-
 #==========
 # Simulate
 #==========
 print ("Running production")
-simulation.reporters.append(pdbReporter)
+simulation.reporters.append(dcdReporter)
 simulation.reporters.append(dataReporter)
 simulation.reporters.append(ForceReporter('wallforces.txt', 100))
 simulation.currentStep = 0
@@ -319,7 +323,6 @@ simulation.step(steps)
 simulation.saveCheckpoint('checkpnt.chk')
 simulation.saveState('output.xml')
 
-traj = 'trajectory.pdb' 
-t = md.load(traj)  
-trajOut = traj.split('.')[0] + '.xyz' 
+t = md.load(traj,top=initialpdb)  
+trajOut = traj.split('.')[0] + '.lammpstrj' 
 t.save(trajOut)  
