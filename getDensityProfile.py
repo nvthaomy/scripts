@@ -9,7 +9,8 @@ import argparse, os, sys
 import matplotlib.pyplot as plt
 import matplotlib
 """Plotting density profile in a specific axis, currently support lammpstrj and pdb formats
-   For volume fraction plot, assumes all species atoms have same size, and all slabs contain same number of atoms
+   For volume fraction plot, assumes all species atoms have same size. 
+	volume fraction = #atoms of interest in slab/ #all atoms in slab
 """
 showPlots = True
 try:
@@ -95,6 +96,13 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
     while len(line): 
         if "ITEM: TIMESTEP" in line:
             frame  += 1
+            if frame != 1 and np.sum(Natoms)!= 0:
+                vol_frac_temp = rho_temp/Natoms
+                vol_frac += vol_frac_temp
+                rho += rho_temp
+            rho_temp = np.zeros(len(zs)-1) #density list of one frame
+            vol_frac_temp = np.zeros(len(zs)-1) #volume fraction list of one frame
+            Natoms = np.zeros(len(zs)-1) #number of all atoms in each slab
             if frame == nextFrame:
                 Nframe += 1
                 readTraj = True  
@@ -114,22 +122,22 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
                     N_tot += 1
                 atomtype = line.split()[atomtype_ind] 
                 current_z = float(line.split()[z_ind])
-                if atomtype in at:
-                    if current_z < L_slice[0]: #if atom is outside of box, wrap it
+                if current_z < L_slice[0]: #if atom is outside of box, wrap it
                         current_z = L_slice[1]-(L_slice[0]-current_z)
-                    elif current_z > L_slice[1]:
+                elif current_z > L_slice[1]:
                         current_z = L_slice[0]+(current_z - L_slice[1])
-                    bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
-                    if current_z <= bound:                        
+                bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
+                if current_z <= bound:                        
                         index = np.where(zs==bound)[0][0]-1
-                    else:
+                else:
                         index = np.where(zs==bound)[0][0]
-                #print('z: {}'.format(current_z))
-                #print('bound: {}'.format(bound))
-                #print ('index: {}'.format(index))
-                    rho[index] += 1       
+		if atomtype in at:
+                    rho_temp[index] += 1
+		Natoms += 1
+       
         line =trjFile.readline()
-    vol_frac = rho/Nframe/(N_tot/boxVol*slabVol)
+    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
+    vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
     return rho, vol_frac   
@@ -194,13 +202,14 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             else:
                 index = np.where(zs==bound)[0][0]
             if atomtype in at:
-                rho[index] += 1
-            
+                rho_temp[index] += 1
+            Natoms[index] +=1
+          
         line =trjFile.readline()
     #vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
+    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
-    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     plot(zs,rho,vol_frac,axis)
     return rho , vol_frac 
                     
