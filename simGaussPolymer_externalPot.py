@@ -255,7 +255,7 @@ if useNPT:
 integrator = openmm.LangevinIntegrator(temperature, friction, dt)
 simulation = app.Simulation(top,system, integrator, platform)
 #simulation = app.Simulation(top,system, integrator, platform,platformProperties)
-positions = box_edge * np.random.rand(N,3)
+positions = [box_edge[0]/angstrom,box_edge[1]/angstrom,box_edge[2]/angstrom]*angstrom * np.random.rand(N,3)
 simulation.context.setPositions(positions)
 #Restart and Check point:
 #to load a saved state: simulation.loadState('output.xml')
