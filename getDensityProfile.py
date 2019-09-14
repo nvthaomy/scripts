@@ -172,8 +172,8 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
         if "MODEL" in line:
             frame  += 1
             if frame != 1 and np.sum(Natoms)!= 0:
-		rho_temp = float(rho_temp)
-                Natoms = float(Natoms)
+		rho_temp = (rho_temp)
+                Natoms = (Natoms)
 		vol_frac_temp = rho_temp/Natoms
                 vol_frac += vol_frac_temp
 		rho += rho_temp
@@ -190,7 +190,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             else: 
                 readTraj = False
         elif ("HETATM" in line or "ATOM" in line) and readTraj:
-            atomtype = line[atomtype_ind[0]:atomtype_ind[0]+1].split()[0]
+            atomtype = line[atomtype_ind[0]:atomtype_ind[1]+1].split()[0]
             current_z = float(line[z_ind[0]:z_ind[1]+1].split()[0]) 
             if frame == 1:
                 N_tot +=1             
