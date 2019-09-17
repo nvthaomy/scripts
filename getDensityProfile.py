@@ -140,7 +140,7 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
     vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
-    return rho, vol_frac   
+    return zs, rho, vol_frac   
   
 def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     axis = ['x','y','z'][ax_ind] 
@@ -213,7 +213,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     vol_frac = vol_frac/float(Nframe)
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
-    return rho , vol_frac 
+    return zs, rho , vol_frac 
                     
 #Inputs
 ns = args.ns
@@ -239,12 +239,16 @@ sys.stdout.write('Getting density profile across the {axis} axis \n'.format(axis
 sys.stdout.write('Reading from {trajFormat} file every {stride} frame(s)\n'.format(stride = stride,trajFormat = trajFormat))
 sys.stdout.write('Number of bins: {}\n'.format(ns))
 if trajFormat == 'lammpstrj':
-    getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride)     
+    zs, rho , vol_frac = getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride)     
 elif trajFormat == 'pdb':        
-    getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride) 
+    zs, rho , vol_frac = getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride) 
 else:
     raise Exception('Only support .lammpstrj and .pdb format')
-                
+data = open('densityProfile.txt','w')
+data.write('\n# r density volfrac')
+for i,z in enumerate(zs):
+     data.write('\n {z} {rho} {volfrac}'.format(z=z,rho=rho[i],volfrac=vol_frac[i]))
+data.close()               
             
     
 
