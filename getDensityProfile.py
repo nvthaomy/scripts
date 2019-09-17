@@ -9,7 +9,8 @@ import argparse, os, sys
 import matplotlib.pyplot as plt
 import matplotlib
 """Plotting density profile in a specific axis, currently support lammpstrj and pdb formats
-   For volume fraction plot, assumes all species atoms have same size, and all slabs contain same number of atoms
+   For volume fraction plot, assumes all species atoms have same size. 
+	volume fraction = #atoms of interest in slab/ #all atoms in slab
 """
 showPlots = True
 try:
@@ -95,6 +96,13 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
     while len(line): 
         if "ITEM: TIMESTEP" in line:
             frame  += 1
+            if frame != 1 and np.sum(Natoms)!= 0:
+                vol_frac_temp = rho_temp/Natoms
+                vol_frac += vol_frac_temp
+                rho += rho_temp
+            rho_temp = np.zeros(len(zs)-1) #density list of one frame
+            vol_frac_temp = np.zeros(len(zs)-1) #volume fraction list of one frame
+            Natoms = np.zeros(len(zs)-1) #number of all atoms in each slab
             if frame == nextFrame:
                 Nframe += 1
                 readTraj = True  
@@ -114,25 +122,33 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
                     N_tot += 1
                 atomtype = line.split()[atomtype_ind] 
                 current_z = float(line.split()[z_ind])
-                if atomtype in at:
-                    if current_z < L_slice[0]: #if atom is outside of box, wrap it
+                if current_z < L_slice[0]: #if atom is outside of box, wrap it
                         current_z = L_slice[1]-(L_slice[0]-current_z)
-                    elif current_z > L_slice[1]:
+                elif current_z > L_slice[1]:
                         current_z = L_slice[0]+(current_z - L_slice[1])
-                    bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
-                    if current_z <= bound:                        
+                bound = min(zs, key=lambda x:abs(x-current_z)) #value of coordinate in zs array that is closest to the position of atom in the slicing direction   
+                if current_z <= bound:                        
                         index = np.where(zs==bound)[0][0]-1
-                    else:
+                else:
                         index = np.where(zs==bound)[0][0]
-                #print('z: {}'.format(current_z))
-                #print('bound: {}'.format(bound))
-                #print ('index: {}'.format(index))
-                    rho[index] += 1       
+		if atomtype in at:
+                    rho_temp[index] += 1
+		Natoms += 1
+       
         line =trjFile.readline()
-    vol_frac = rho/Nframe/(N_tot/boxVol*slabVol)
+    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
+    vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
-    return rho, vol_frac   
+    z_plot = []
+    for i in range(len(zs)-1): #making z array for plotting 
+        zavg = (zs[i]+zs[i+1])/2
+        z_plot.append(zavg)
+    data = open('densityProfile.dat','w')
+    data.write('\n# r Density VolFrac')
+    for i, z in enumerate(z_plot):
+        data.write('\n{z} {rho} {vol_frac}'.format(z=zs[i],rho=rho[i],vol_frac=vol_frac[i]))
+    return zs, rho, vol_frac   
   
 def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     axis = ['x','y','z'][ax_ind] 
@@ -164,8 +180,8 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
         if "MODEL" in line:
             frame  += 1
             if frame != 1 and np.sum(Natoms)!= 0:
-		rho_temp = float(rho_temp)
-                Natoms = float(Natoms)
+		rho_temp = (rho_temp)
+                Natoms = (Natoms)
 		vol_frac_temp = rho_temp/Natoms
                 vol_frac += vol_frac_temp
 		rho += rho_temp
@@ -182,7 +198,7 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             else: 
                 readTraj = False
         elif ("HETATM" in line or "ATOM" in line) and readTraj:
-            atomtype = line[atomtype_ind[0]:atomtype_ind[0]+1].split()[0]
+            atomtype = line[atomtype_ind[0]:atomtype_ind[1]+1].split()[0]
             current_z = float(line[z_ind[0]:z_ind[1]+1].split()[0]) 
             if frame == 1:
                 N_tot +=1             
@@ -196,15 +212,24 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
             else:
                 index = np.where(zs==bound)[0][0]
             if atomtype in at:
-                rho[index] += 1
-            
+                rho_temp[index] += 1
+            Natoms[index] +=1
+          
         line =trjFile.readline()
     #vol_frac = rho/Nframe/(N_tot/boxVol*slabVol) #volume fraction, #atoms/#Ntot assuming all atoms of all species have same volume
+    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     vol_frac = vol_frac/float(Nframe)
     rho = rho/Nframe/slabVol
-    sys.stdout.write("\nTotal number of atoms: {}".format(N_tot))
     plot(zs,rho,vol_frac,axis)
-    return rho , vol_frac 
+    z_plot = []
+    for i in range(len(zs)-1): #making z array for plotting 
+        zavg = (zs[i]+zs[i+1])/2
+        z_plot.append(zavg)
+    data = open('densityProfile.dat','w')
+    data.write('\n# r Density VolFrac')
+    for i, z in enumerate(z_plot):
+        data.write('\n{z} {rho} {vol_frac}'.format(z=z,rho=rho[i],vol_frac=vol_frac[i])) 
+    return zs ,rho , vol_frac 
                     
 #Inputs
 ns = args.ns
@@ -230,12 +255,16 @@ sys.stdout.write('Getting density profile across the {axis} axis \n'.format(axis
 sys.stdout.write('Reading from {trajFormat} file every {stride} frame(s)\n'.format(stride = stride,trajFormat = trajFormat))
 sys.stdout.write('Number of bins: {}\n'.format(ns))
 if trajFormat == 'lammpstrj':
-    getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride)     
+    zs, rho , vol_frac = getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride)     
 elif trajFormat == 'pdb':        
-    getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride) 
+    zs, rho , vol_frac = getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride) 
 else:
     raise Exception('Only support .lammpstrj and .pdb format')
-                
+data = open('densityProfile.txt','w')
+data.write('\n# r density volfrac')
+for i,z in enumerate(zs):
+     data.write('\n {z} {rho} {volfrac}'.format(z=z,rho=rho[i],volfrac=vol_frac[i]))
+data.close()               
             
     
 
