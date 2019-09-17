@@ -140,6 +140,14 @@ def getDensityProfile_lammps(L,ax_ind,ns,traj,at,stride):
     vol_frac = vol_frac/Nframe
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
+    z_plot = []
+    for i in range(len(zs)-1): #making z array for plotting 
+        zavg = (zs[i]+zs[i+1])/2
+        z_plot.append(zavg)
+    data = open('densityProfile.dat','w')
+    data.write('\n# r Density VolFrac')
+    for i, z in enumerate(z_plot):
+        data.write('\n{z} {rho} {vol_frac}'.format(z=zs[i],rho=rho[i],vol_frac=vol_frac[i]))
     return zs, rho, vol_frac   
   
 def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
@@ -213,7 +221,15 @@ def getDensityProfile_pdb(L,ax_ind,ns,traj,at,stride):
     vol_frac = vol_frac/float(Nframe)
     rho = rho/Nframe/slabVol
     plot(zs,rho,vol_frac,axis)
-    return zs, rho , vol_frac 
+    z_plot = []
+    for i in range(len(zs)-1): #making z array for plotting 
+        zavg = (zs[i]+zs[i+1])/2
+        z_plot.append(zavg)
+    data = open('densityProfile.dat','w')
+    data.write('\n# r Density VolFrac')
+    for i, z in enumerate(z_plot):
+        data.write('\n{z} {rho} {vol_frac}'.format(z=z,rho=rho[i],vol_frac=vol_frac[i])) 
+    return zs ,rho , vol_frac 
                     
 #Inputs
 ns = args.ns
