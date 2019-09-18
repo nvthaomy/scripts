@@ -48,6 +48,7 @@ Nperiod = 1
 axis  = 0
 reduced_planeLoc = 0 
 reduced_L = 80. #box length along axis where potential is applied
+mapping = 6 #apply the external potential on the centroid of this many polymer monomers, need to be consistent with mapping used in Srel
 #======================
 #2) Integration Options
 #======================
@@ -235,16 +236,18 @@ ax = external["axis"]
 #atomsInExtField = [elementMap[atomname]]
 if external["U"] != 0:
 	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
-	#energy_function = 'U*sin(2*{pi}*NPeriod*({axis}-{r0})/{L})'.format(pi=np.pi, L=box_edge[ax], r0=external["planeLoc"], axis=direction[ax])
 	energy_function = 'U*sin(2*pi*NPeriod*({axis}-r0)/L)'.format(axis=direction[ax])
-	fExt = openmm.CustomExternalForce(energy_function)
+        fExt = openmm.CustomCentroidBondForce(1,energy_function)
 	fExt.addGlobalParameter("U", external["U"])
 	fExt.addGlobalParameter("NPeriod", external["NPeriod"])
 	fExt.addGlobalParameter("pi",np.pi)
 	fExt.addGlobalParameter("r0",external["planeLoc"])
 	fExt.addGlobalParameter("L",box_edge[ax])
-	for i in Polymer:
-		fExt.addParticle( i,[] )
+        atomThusFar = 0
+        for i in range(int(NP*DOP/mapping)): #looping through CG beads
+            fExt.addGroup(range(atomThusFar,atomThusFar+mapping)) #assuming the first NP*DOP atoms are polymer atoms and atom index increases along chain
+            fExt.addBond([i], [])
+            atomThusFar += mapping
 	system.addForce(fExt)
 
 #===========================
@@ -294,5 +297,7 @@ simulation.step(steps)
 simulation.saveState('output.xml')
 
 t = md.load(traj,top=initialpdb)
+trajOut = traj.split('.')[0] + '.pdb'
+t.save(trajOut)
 trajOut = traj.split('.')[0] + '.lammpstrj'
 t.save(trajOut)
