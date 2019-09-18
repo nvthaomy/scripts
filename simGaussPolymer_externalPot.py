@@ -236,7 +236,7 @@ ax = external["axis"]
 #atomsInExtField = [elementMap[atomname]]
 if external["U"] != 0:
 	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
-	energy_function = 'U*sin(2*pi*NPeriod*({axis}-r0)/L)'.format(axis=direction[ax])
+	energy_function = 'U*sin(2*pi*NPeriod*({axis}1-r0)/L)'.format(axis=direction[ax])
         fExt = openmm.CustomCentroidBondForce(1,energy_function)
 	fExt.addGlobalParameter("U", external["U"])
 	fExt.addGlobalParameter("NPeriod", external["NPeriod"])
