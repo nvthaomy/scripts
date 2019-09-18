@@ -238,11 +238,11 @@ if external["U"] != 0:
 	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
 	energy_function = 'U*sin(2*pi*NPeriod*({axis}1-r0)/L)'.format(axis=direction[ax])
         fExt = openmm.CustomCentroidBondForce(1,energy_function)
-	fExt.addGlobalParameter("U", external["U"])
-	fExt.addGlobalParameter("NPeriod", external["NPeriod"])
-	fExt.addGlobalParameter("pi",np.pi)
-	fExt.addGlobalParameter("r0",external["planeLoc"])
-	fExt.addGlobalParameter("L",box_edge[ax])
+        fExt.addGlobalParameter("U", external["U"])
+        fExt.addGlobalParameter("NPeriod", external["NPeriod"])
+        fExt.addGlobalParameter("pi",np.pi)
+        fExt.addGlobalParameter("r0",external["planeLoc"])
+        fExt.addGlobalParameter("L",box_edge[ax])
         atomThusFar = 0
         for i in range(int(NP*DOP/mapping)): #looping through CG beads
             fExt.addGroup(range(atomThusFar,atomThusFar+mapping)) #assuming the first NP*DOP atoms are polymer atoms and atom index increases along chain
