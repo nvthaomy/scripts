@@ -43,12 +43,12 @@ A_PS = -130
 reduced_nonbondedCutoff = 10
 
 #External potential:
-Uext = 10
+mapping = 6 #apply the external potential on the centroid of this many polymer monomers, need to be consistent with mapping used in Srel
+Uext = 0.1*mapping #amplitude of sinusoidal potential applied on the centroids
 Nperiod = 1
 axis  = 0
 reduced_planeLoc = 0 
 reduced_L = 80. #box length along axis where potential is applied
-mapping = 6 #apply the external potential on the centroid of this many polymer monomers, need to be consistent with mapping used in Srel
 #======================
 #2) Integration Options
 #======================
