@@ -12,7 +12,8 @@ import numpy as np
 import argparse, os
 import sys
 parser = argparse.ArgumentParser()
-parser.add_argument("-i",required=True,help="traj file")
+parser.add_argument("-dcd", required=True, help='.dcd traj file')
+parser.add_argument("-i",required=True,help=".lammpstrj traj file")
 parser.add_argument("-at", required=True, help="atom type of inserting particle in the traj file")
 parser.add_argument("-n", default = "100", help = "Number of insertions per frame")
 parser.add_argument("-top", help = "topology file, e.g. pdb")
@@ -73,7 +74,7 @@ def getFrames(traj,nFrames):
             frames.append(lines[iframe*linesperframe:(1+iframe)*linesperframe])
     return frames           
 import mdtraj
-trj = mdtraj.load(args.i, top=args.top)
+trj = mdtraj.load(args.dcd, top=args.top)
 nFrames = trj.n_frames
 nInsertions = int(args.n)
 nAtoms = trj.n_atoms
@@ -106,3 +107,5 @@ with open(outTraj,'w') as outfile:
             outfile.write("".join(linesInFrame))
             outfile.write(newline)
             j += 1
+outfile.close()
+
