@@ -16,7 +16,7 @@ import os
 
 
 
-def AtomArange(P,DOP,L,ns):
+def AtomArange(P,DOP,L,ns,dataFn):
 
     """ Arranges the polymer atoms, N, onto a cubic lattice of side length, L.
             Input:
@@ -61,10 +61,10 @@ def AtomArange(P,DOP,L,ns):
         if i >= N:
             break
     
-    InitVis(Pos,L,P, DOP, ns)
+    InitVis(Pos,L,P, DOP, ns,dataFn)
     
     
-def InitVis(Pos,L,P, DOP, ns):    
+def InitVis(Pos,L,P, DOP, ns,dataFn):    
     """ Creates a visualization pdb file for use with Chimera
     
     Inputs: 
@@ -91,10 +91,10 @@ def InitVis(Pos,L,P, DOP, ns):
     print filename
         
     atomwrite.pdbfile(str(filename), L, Compressed = False).write(Pos)
-    data(Pos,L,P,DOP, ns)
+    data(Pos,L,P,DOP, ns,fn=dataFn)
     return Pos
 
-def data(Pos, L, P, DOP, ns):
+def data(Pos, L, P, DOP, ns,fn='polymer'):
     """ Creates the input data file for LAMMPS simulation.
     Inputs:
         Pos - atom positions
@@ -115,18 +115,21 @@ def data(Pos, L, P, DOP, ns):
     print "The number of segments per polymer"
     print NumAtomsP
     NumBonds  = (DOP - 1)*P
-    fn = "polymer"
+    
     fnNum = "0"
     fnExt = ".data"
     
     i = 1
-    filename = "%s%s%s" % (fn,fnNum,fnExt)
-    
-    # checks to see if file exists
-    while os.path.isfile(filename) == True:
-        fnNum = "%s" % i
-        filename = str(fn + fnNum + fnExt)
-        i = i + 1
+    if fn =="polymer":
+        filename = "%s%s%s" % (fn,fnNum,fnExt)
+        # checks to see if file exists
+
+        while os.path.isfile(filename) == True:
+            fnNum = "%s" % i
+            filename = str(fn + fnNum + fnExt)
+            i = i + 1
+    else:
+        filename = "%s%s" %(fn,fnExt)
     print filename
     
     # creates the new file with name "filename"
@@ -234,6 +237,7 @@ if __name__ == "__main__":
     parser.add_argument('-np','--numberpolymer',type=int, default=1, help='specify the number of polymers in the system')
     parser.add_argument('-L','--LboxSide', type=float, default=10, help='specify the box side length for the simulation, LJ units, e.g. in units of statistical segment/sqrt(6)')
     parser.add_argument('-ns','--numbersolvent', type=int, default=0, help='specify the number of CG solvent molecules in the system')
+    parser.add_argument('-dat',type=str, default="polymer",help='data file name')
     args=parser.parse_args()
     
-    AtomArange(args.numberpolymer, args.DOP, args.LboxSide, args.numbersolvent)
+    AtomArange(args.numberpolymer, args.DOP, args.LboxSide, args.numbersolvent,args.dat)
