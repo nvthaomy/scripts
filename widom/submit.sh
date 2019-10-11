@@ -29,7 +29,7 @@ dat1=$dat1name'.data'
 python ~/bin/widom/getWidomTraj.py -i $traj0 -at $at -n $n -top $top -o $trajwidom -dcd $dcd
 python ~/bin/BSpolymerExpSolventInit.py -np $NP -ns $((NS+1)) -N $N -L $L -dat $dat1name
 python ~/bin/widom/writeInput.py -i $inputF -dat $dat0 -trj $traj0 -o rerun0 -txt u0
-python ~/bin/widom/writeInput.py -in $inputF -dat $dat1 -trj $traj1 -o rerun1 -txt u1
+python ~/bin/widom/writeInput.py -i $inputF -dat $dat1 -trj $traj1 -o rerun1 -txt u1
 lmp_omp -sf omp -pk omp 2 -in rerun0.in -log rerun0.log
 lmp_omp -sf omp -pk omp 2 -in rerun1.in -log rerun1.log
 python ~/bin/widom/getChemPot.py -u0 u0.txt -u1 u1.txt -n $n

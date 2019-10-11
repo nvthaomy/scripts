@@ -5,6 +5,7 @@ Created on Sat Jun  1 17:12:12 2019
 
 @author: nvthaomy
 """
+import os
 import numpy as np
 import argparse
 """Calculating excess chemical potential from inserting a test particle
@@ -48,6 +49,14 @@ np.savetxt("insertion.dat", data, header="ChemPot\t\tU0\t\tU1" )
 B = np.mean(A) #average of exp(-deltaU*) over traj frames
 
 dF= -np.log(B) 
-print("Free energy for inserting one particle is {}".format(dF))                          
-                       
 
+fname = 'widom_'
+fId = '0'
+fext = 'Ninsertion_{}'.format(str(int(args.n)))
+filename = fname + fext + fId +'.txt'
+while os.path.isfile(filename) == True:
+    fId += 1
+    filename = fname + fext + fId +'.txt'
+print ('Excess chemical potential from {} insertions: {}'.format(args.n, dF))
+f = open(filename,'w'):
+    f.write('Excess chemical potential from {} insertions: {}'.format(args.n, dF))                       
