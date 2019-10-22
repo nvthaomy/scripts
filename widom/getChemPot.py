@@ -51,12 +51,12 @@ B = np.mean(A) #average of exp(-deltaU*) over traj frames
 dF= -np.log(B) 
 
 fname = 'widom_'
-fId = '0'
+fId = 0
 fext = 'Ninsertion_{}'.format(str(int(args.n)))
-filename = fname + fext + fId +'.txt'
+filename = fname + fext + str(fId) +'.txt'
 while os.path.isfile(filename) == True:
     fId += 1
-    filename = fname + fext + fId +'.txt'
+    filename = fname + fext + str(fId) +'.txt'
 print ('Excess chemical potential from {} insertions: {}'.format(args.n, dF))
-f = open(filename,'w'):
-    f.write('Excess chemical potential from {} insertions: {}'.format(args.n, dF))                       
+f = open(filename,'w')
+f.write('Excess chemical potential from {} insertions: {}'.format(args.n, dF))                       
