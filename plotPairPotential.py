@@ -102,11 +102,11 @@ for i,u in enumerate(us):
     es.append(e)
 
 #write to file
-outfile = open('{}_plotPairPotential.log'.format(args.n),'w')
+outfile = open('{}_plotPairPotential.txt'.format(args.n),'w')
 s = "#{} excludedV Eintegral\n".format(xlabel)
 for i, x in enumerate(xs):
     s += '{x} {v} {e}\n'.format(x=x,v=vs[i],e=es[i])
-s += "ran with arguments:\n{}".format(command_args)
+s += "#ran with arguments:\n#{}".format(command_args)
 outfile.write(s)
 outfile.close()
 #plot pair potential
