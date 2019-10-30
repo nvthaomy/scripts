@@ -4,6 +4,10 @@
 Created on Wed May 29 09:29:13 2019
 
 @author: nvthaomy
+
+Simulating Gaussian polymer/fluid in NVT/NPT ensemble
+With or without the external potential
+
 """
 import mdtraj as md
 from simtk import openmm, unit
@@ -234,7 +238,7 @@ external={"U":Uext*epsilon,"NPeriod":Nperiod,"axis":axis ,"planeLoc":planeLoc}
 direction=['x','y','z']
 ax = external["axis"]
 #atomsInExtField = [elementMap[atomname]]
-if external["U"] != 0:
+if external["U"] > 0.0 * kilojoules_per_mole:
 	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
 	energy_function = 'U*sin(2*pi*NPeriod*({axis}1-r0)/L)'.format(axis=direction[ax])
         fExt = openmm.CustomCentroidBondForce(1,energy_function)
