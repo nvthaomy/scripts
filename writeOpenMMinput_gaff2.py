@@ -26,11 +26,10 @@ def writeJobfile(temp,charge,w,N):
         job.write('\nexport PATH="/home/mnguyen/anaconda3/bin:$PATH"')
         job.write('\npython sim{}.py'.format(int(temp)))
     return name
-def writeOpenMMinput(temp,top,crd,x,y,z,anisoP):
+def writeOpenMMinput(temp,top,crd):
     name = 'sim{}.py'.format(int(temp))
     with open(name,'w') as sim:
-        sim.write('from sys import stdout\nimport numpy as np')
-        sim.write('\nimport mdtraj, simtk')
+        sim.write('from sys import stdout')
         sim.write('\nfrom simtk.openmm import *')
         sim.write('\nfrom simtk.openmm.app import *')
         sim.write('\nfrom simtk.unit import *\n')
@@ -39,34 +38,30 @@ def writeOpenMMinput(temp,top,crd,x,y,z,anisoP):
         sim.write('\ninpcrd = AmberInpcrdFile(\'{}\')\n'.format(crd))
         sim.write('\n# System Configuration\n')
         sim.write('\nnonbondedMethod = PME')
-        sim.write('\nnonbondedCutoff = 1.0*nanometers\ntailCorrection = True')
+        sim.write('\nnonbondedCutoff = 1.0*nanometers')
         sim.write('\newaldErrorTolerance = 0.0001')
         sim.write('\nconstraints = HBonds')
         sim.write('\nrigidWater = True')
-        sim.write('\nconstraintTolerance = 0.000001\nbox_vectors = np.diag([{},{},{}]) * nanometer'.format(x,y,z))
+        sim.write('\nconstraintTolerance = 0.000001\n')
         sim.write('\n# Integration Options\n')
         sim.write('\ndt = 0.002*picoseconds')
         sim.write('\ntemperature = {}*kelvin'.format(temp))
-        sim.write('\nfriction = 1.0/(100.*dt)')
+        sim.write('\nfriction = 1.0/(100./dt)')
         sim.write('\npressure = 1.0*atmospheres')
         sim.write('\nbarostatInterval = 25\n')
         sim.write('\n# Simulation Options\n')                    
-        sim.write('\nsteps = 2e7')
+        sim.write('\nsteps = 1e7')
         sim.write('\nequilibrationSteps = 100000')
         sim.write('\nplatform = Platform.getPlatformByName(\'CUDA\')')
         sim.write('\nplatformProperties = {\'Precision\': \'mixed\'}')
-        sim.write('\ndcdReporter = mdtraj.reporters.DCDReporter(\'trajectory{}.dcd\', 5000)'.format(int(temp)))
-#       sim.write('\ndcdReporter = DCDReporter(\'trajectory{}.dcd\', 5000)'.format(int(temp)))
+        sim.write('\ndcdReporter = DCDReporter(\'trajectory{}.dcd\', 5000)'.format(int(temp)))
         sim.write('\ndataReporter = StateDataReporter(\'log{}.txt\', 1000, totalSteps=steps, step=True, speed=True, progress=True, remainingTime=True, potentialEnergy=True, totalEnergy=True, temperature=True, volume=True, density=True, separator=\'\\t\')\n'.format(int(temp)))
         sim.write('\n# Prepare the Simulation\n')
         sim.write('\nprint(\'Building system...\')')
         sim.write('\ntopology = prmtop.topology')
         sim.write('\npositions = inpcrd.positions')
         sim.write('\nsystem = prmtop.createSystem(nonbondedMethod=nonbondedMethod, nonbondedCutoff=nonbondedCutoff,constraints=constraints, rigidWater=rigidWater, ewaldErrorTolerance=ewaldErrorTolerance)')
-        if anisoP:
-            sim.write('\nsystem.addForce(MonteCarloAnisotropicBarostat(3*[pressure],temperature,False,False,True,barostatInterval))')
-        else:
-            sim.write('\nsystem.addForce(MonteCarloBarostat(pressure, temperature, barostatInterval))')
+        sim.write('\nsystem.addForce(MonteCarloBarostat(pressure, temperature, barostatInterval))')
         sim.write('\nintegrator = LangevinIntegrator(temperature, friction, dt)')
         sim.write('\nintegrator.setConstraintTolerance(constraintTolerance)')
         sim.write('\n#simulation = Simulation(topology, system, integrator, platform)')
@@ -74,20 +69,6 @@ def writeOpenMMinput(temp,top,crd,x,y,z,anisoP):
         sim.write('\nsimulation.context.setPositions(positions)')
         sim.write('\nif inpcrd.boxVectors is not None:')
         sim.write('\n\tsimulation.context.setPeriodicBoxVectors(*inpcrd.boxVectors)\n')
-        sim.write("""\nsimulation.context.setPeriodicBoxVectors(*box_vectors)
-forces = system.getForces()
-for force in forces:
-    if isinstance(force,simtk.openmm.openmm.NonbondedForce):
-        nonbondedforce = force
-nonbondedforce.setUseDispersionCorrection(tailCorrection)
-nonbondedforce.updateParametersInContext(simulation.context)
-forces = system.getForces()
-for force in forces:
-    if isinstance(force,simtk.openmm.openmm.NonbondedForce):
-        nonbondedforce = force
-print('getUseDispersionCorrection')
-print(nonbondedforce.getUseDispersionCorrection())""")
-
         sim.write('\n#Restart and Check point')
         sim.write('\nsimulation.saveState(\'output{}.xml\')\n'.format(int(temp)))
         sim.write('\n#to load state: simulation.loadState(\'output.xml\')')
@@ -104,30 +85,23 @@ print(nonbondedforce.getUseDispersionCorrection())""")
         sim.write('\nsimulation.reporters.append(dataReporter)')
         sim.write('\nsimulation.currentStep = 0')
         sim.write('\nsimulation.step(steps)')
-        sim.write('\nsimulation.saveState(\'output{}.xml\')\n'.format(int(temp)))
     return name
 
-def main(f,N,np,nw,watermodel,singleChainPdb,T,PAALib,x,y,z,anisoP):
-    mixturePdb,wtFraction = packmol.packmol(f,N,np,nw,watermodel,singleChainPdb,x,y,z)
+def main(f,N,np,nw,watermodel,singleChainPdb,T,PAALib):
+    mixturePdb,wtFraction = packmol.packmol(f,N,np,nw,watermodel,singleChainPdb)
     print('\nSubmitting packmol job ...')
     for pdb in singleChainPdb: #checking if single chain pdb files and packmol.job exist
         while not os.path.exists(pdb) or not os.path.exists('packmol.job'):  
             time.sleep(1)
     os.system('qsub packmol.job') 
     print ('\nPacking molecules...')
-    load = raw_input('\nif packmol job is done, proceed to wrting topology files? (y) ')
+    for pdb in mixturePdb:
+        while not os.path.exists(pdb):  
+            time.sleep(1)  
+    print('\nWriting input file to load force field in tleap')
+    loadffFile,topFile,crdFile = loadFF.loadFF(watermodel,mixturePdb,PAALib)
+    os.system('\ntleap -s -f {} > loadFF.out'.format(loadffFile))
     
-    while load != 'y' and len(load)>0:
-        print('enter y when packmol is done')
-        load = raw_input('\nif packmol job is done, proceed to wrting topology files? (y) ')
-    if load  == 'y':
-
-    #for pdb in mixturePdb:
-    #    while not os.path.exists(pdb):  
-    #        time.sleep(1)  
-        print('\nWriting input file to load force field in tleap')
-        loadffFile,topFile,crdFile = loadFF.loadFF(watermodel,mixturePdb,PAALib)
-        os.system('\ntleap -s -f {} > loadFF.out'.format(loadffFile))
     for i,top in enumerate(topFile):
         while not os.path.exists(top) and not os.path.exists(crdFile[i]):
            time.sleep(1)
@@ -145,7 +119,7 @@ def main(f,N,np,nw,watermodel,singleChainPdb,T,PAALib,x,y,z,anisoP):
             shutil.move(crd[0],folder+'/{}'.format(crd[0]))
 	    shutil.move(pdb[0],folder+'/{}'.format(pdb[0]))
             for temp in T:
-                sim = writeOpenMMinput(temp,top[0],crd[0],x,y,z,anisoP)
+                sim = writeOpenMMinput(temp,top[0],crd[0])
                 job = writeJobfile(temp,charge,w,N)
                 shutil.move(job,folder+'/{}'.format(job))
                 shutil.move(sim,folder+'/{}'.format(sim))

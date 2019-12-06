@@ -13,8 +13,7 @@ def loadFF(watermodel,mixturePdb,lib):
     with open('loadFF.in','w') as load:
         load.write('source leaprc.gaff2')
         load.write('\nsource leaprc.water.{}'.format(watermodel))
-        for i in lib:
-            load.write('\nloadOFF {}.lib\n'.format(i))
+        load.write('\nloadOFF {}.lib\n'.format(lib))
         topFile = []
         crdFile = []
         for pdb in mixturePdb:
@@ -36,7 +35,7 @@ if __name__ == "__main__":
                         help="list of mixture pdb")
     parser.add_argument("-w","--watermodel",
                         help="Water model for simulation (opc,tip3p,spce), default = opc")
-    parser.add_argument("-l", nargs='+', 
+    parser.add_argument("-l", default = 'PAA',
 			help="tleap library for PAA monomers: PAA, PAA_avg, PAA1, etc.")
     args = parser.parse_args() 
     if args.watermodel:

@@ -50,7 +50,7 @@ def writeOpenMMinput(temp,top,gro):
         sim.write('\ntemperature = {}*kelvin'.format(temp))
         sim.write('\nfriction = 1.0/(100*dt)')
         sim.write('\npressure = 1.0*atmospheres')
-        sim.write('\nbarostatInterval = 25\n')
+        sim.write('\nbarostatInterval = 1000\n')
         sim.write('\n# Simulation Options\n')                    
         sim.write('\nsteps = 1e7')
         sim.write('\nequilibrationSteps = 100000')
@@ -87,7 +87,6 @@ def writeOpenMMinput(temp,top,gro):
         sim.write('\nsimulation.reporters.append(dataReporter)')
         sim.write('\nsimulation.currentStep = 0')
         sim.write('\nsimulation.step(steps)')
-        sim.write('\nsimulation.saveState(\'output{}.xml\')\n'.format(int(temp)))
     return name
 
 def main(f,N,np,nw,w,watermodel,singleChainPdb,T):

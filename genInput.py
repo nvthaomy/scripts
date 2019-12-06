@@ -23,7 +23,8 @@ if __name__ == "__main__":
                         as the file name")
     parser.add_argument("-N",type=int, required=True,
                         help="degree of polymerization")
-    parser.add_argument("-Pm","--Pm",type=float,default = 1, help="Meso diad fraction, isotactic if = 1, syndiotactic if = 0")
+    parser.add_argument("-Pm","--Pm",type=float, 
+                        help="Meso fraction, default = 0.5")
     parser.add_argument("-r","--random", action = "store_true",
                         help="Random deprotonation, default pattern is random")
     parser.add_argument("-e","--evendist", action = "store_true",
@@ -38,12 +39,8 @@ if __name__ == "__main__":
                         help="list of number of water molecules")
     parser.add_argument("-ff", 
                         help="force field: gaff2 or cgen, default is gaff2")
-    parser.add_argument("-l",nargs ="+",
-                        help="tleap libraries for PAA monomers: PAA, PAA_avg,PAA1,etc.")
-    parser.add_argument("-xyz",nargs ="+",type = float,
-                        help="periodic box size in nm")
-    parser.add_argument("-a", action = "store_true",
-                        help="if use anisotropic MC barostat, acts on the z direction")
+    parser.add_argument("-l",default = 'PAA',
+                        help="tleap library for PAA monomers: PAA, PAA_avg,PAA1,etc.")
     args = parser.parse_args() 
     if args.ff:
         ff = args.ff
@@ -53,10 +50,6 @@ if __name__ == "__main__":
         watermodel = args.watermodel
     else:
         watermodel = 'opc'
-    if args.a:
-        anisoP = True
-    else:
-        anisoP = False
     np=args.np
     np= numpy.array(args.np)
     nw= numpy.array(args.nw)
@@ -65,19 +58,10 @@ if __name__ == "__main__":
     Pm = args.Pm
     T = args.temperature
     PAALib = args.l
-    
-    #estimate box size from water density if not provided:
-    if not args.xyz:
-        ntot = nw + N*np
-        vol = float(ntot)/33.36
-        x = vol**(1./3.)
-        y = x
-        z = x
-    else:
-        x,y,z = (args.xyz[0],args.xyz[1],args.xyz[2])
-
     singleChainPdb = []
     pattern = 'random' #random deprotonation
+    if not Pm:
+           Pm = 0.5
     if args.evendist:
         pattern = 'even'
     if not len(np) == len(nw):
@@ -114,7 +98,7 @@ if __name__ == "__main__":
             newCharge.append(charge_frac)
         f = newCharge
     if ff == 'gaff2':
-        writeOpenMMinput_gaff2.main(f,N,np,nw,watermodel,singleChainPdb,T,PAALib, x,y,z, anisoP)
+        writeOpenMMinput_gaff2.main(f,N,np,nw,watermodel,singleChainPdb,T,PAALib)
     elif ff == 'cgen':
         writeOpenMMinput_cgen.main(f,N,np,nw,w,watermodel,singleChainPdb,T)
         
