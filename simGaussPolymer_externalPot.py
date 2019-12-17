@@ -3,13 +3,25 @@
 """
 Created on Wed May 29 09:29:13 2019
 
-@author: nvthaomy
+@author: My Nguyen 
 
-Simulating Gaussian polymer/fluid in NVT/NPT ensemble
+Simulating Gaussian polymer solution in NVT/NPT ensemble
 With or without the external potential
 
+Flow of the script
+
+Provide inputs in:
+    0) define energy, length, mass scales
+    1) dimensionless parameters defining system topology and interactions
+       d) only if apply an sinusoidal external potential on the polymers, set Uext to 0 to disable this
+    2) integration options
+    3) set up reports
+
+4)Convert dimensionless parameters to real units based on the scales provided in 0) since openmm only handle real units
+5)-9) Create system and interactions
+10)-12) Simulation
 """
-import mdtraj as md
+#import mdtraj as md
 from simtk import openmm, unit
 from simtk.unit import *
 from simtk.openmm import app
@@ -17,7 +29,7 @@ import numpy as np
 import simtk.openmm.app.topology as topology
 
 #========================================
-###DEFINE ENERGY, LENGTH & MASS SCALES###
+#0) DEFINE ENERGY, LENGTH & MASS SCALES###
 #========================================
 epsilon  = 1 * kilojoules_per_mole
 sigma = 0.1 * nanometer
@@ -27,32 +39,46 @@ kb = 1.380649*10**(-23)*joules/kelvin* N_av #joules/kelvin/mol
 #====================================
 #1) SYSTEM DIMENSIONLESS PARAMETERS###
 #====================================
-#Molecules:
-NP = 250
-NS = 6000
+#a)Molecules:
+#number of polymers and degree of polymerization
+NP = 20
 DOP = 24
+#number of solvents
+NS = 600
 N = NP*DOP + NS
+
 charge = 0.0 * elementary_charge
+#density in (length)**-3
 reduced_density = 6000/(40**3)
 
-#Bonded potential:
-l = 1 #reduced bond length
-k = 2 * 3000 #reduced force constant #multiply by 2 if use force constant from lammps
+#b)Bonded potential: k/2(r-l)**2
+#reduced equilibrium bond length
+l = 1 
+#reduced force constant, note: k = 2*k_lammps 
+k = 2 * 3000 
 
-#Pair potential: u = -A exp(-Br^2)
+#c)Pair potential: u = -A exp(-Br^2)
 B = 1
-A_PP = -100
+#interaction energy scale for each pair type
+#polymer-polymer
+A_PP = -100 
+#solvent-solvent
 A_SS = -100
+#polymer-solvent
 A_PS = -130
 reduced_nonbondedCutoff = 10
+nonbondedMethod = openmm.CustomNonbondedForce.CutoffPeriodic
+#whether to add correction to the energy beyond nonbonded cutoff
+UseLongRangeCorrection = False
 
-#External potential:
-mapping = 6 #apply the external potential on the centroid of this many polymer monomers, need to be consistent with mapping used in Srel
-Uext = 0.1*mapping #amplitude of sinusoidal potential applied on the centroids
+#d) External potential: applying sinusoidal external potential on polymer centroid, set Uext = 0 to disable 
+mapping = 6 #apply the external potential on the centroid of this many polymer monomers
+Uext = 0 * mapping #amplitude of sinusoidal potential applied on the centroids
 Nperiod = 1
 axis  = 0
 reduced_planeLoc = 0 
 reduced_L = 80. #box length along axis where potential is applied
+
 #======================
 #2) Integration Options
 #======================
@@ -63,38 +89,40 @@ reduced_temp = 1
 reduced_Tdamp = 100*reduced_timestep #time units
 reduced_pressure = 1
 reduced_Pdamp = 1000*reduced_timestep #time units
-#=====================
-#3) Simulation Options
-#=====================
+
 steps = 2e7
 equilibrationSteps = 1e7
-platform = openmm.Platform.getPlatformByName('CPU')
+#if platform is not set, openmm will try to select the fastest available Platform
+platform = None
+platformProperties = None
+#platform = openmm.Platform.getPlatformByName('CPU')
 #platformProperties = {'Precision': 'mixed'}
 #platform = openmm.Platform.getPlatformByName('CUDA')
 
+#=====================
+#3) Reports
+#=====================
+#set up data and trajectory reports:
 traj = 'trajectory.dcd'
-dcdReporter = app.dcdreporter.DCDReporter(traj,10000,enforcePeriodicBox=True)
-#pdbReporter = app.pdbreporter.PDBReporter(traj, 20000)
+#if use mdtraj's reporter:
+#dcdReporter = mdtraj.reporters.DCDReporter(traj, 5000)
+
+#if don't have mdtraj, can use openmm's reporter to write out trajectory in pdb or dcd format
+#dcdReporter = app.dcdreporter.DCDReporter(traj,10000,enforcePeriodicBox=True)
+pdbReporter = app.pdbreporter.PDBReporter( traj, 5000)
+
 dataReporter = app.statedatareporter.StateDataReporter('log.txt', 1000, totalSteps=steps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True, 
     totalEnergy=True, temperature=True, volume=True, density=True, remainingTime=True,separator='\t')
 
 dcdReporter_warmup = app.dcdreporter.DCDReporter('trajectory_warmup.dcd',10000,enforcePeriodicBox=True)
-#pdbReporter_warmup = app.pdbreporter.PDBReporter(traj_warmup, 5000)
 dataReporter_warmup= app.statedatareporter.StateDataReporter('log_warmup.txt', 1000, totalSteps=equilibrationSteps,
     step=True, speed=True, progress=True, potentialEnergy=True, kineticEnergy=True,
     totalEnergy=True, temperature=True, volume=True, density=True, remainingTime=True,separator='\t')
 
-nonbondedMethod = openmm.CustomNonbondedForce.CutoffPeriodic
-ewaldErrorTolerance = 0.0001
-constraints = None
-#rigidWater = True
-#constraintTolerance = 0.000001
-
 #=============================
-###Converting to real units###
+#4) Converting to real units###
 #=============================
-
 planeLoc =  reduced_planeLoc*sigma
 nonbondedCutoff = reduced_nonbondedCutoff*sigma
 L = reduced_L*sigma
@@ -103,19 +131,20 @@ temperature = reduced_temp * epsilon/kb
 friction = 1/(reduced_Tdamp) * (epsilon/(mass*sigma*sigma))**(1/2)
 pressure = reduced_pressure * epsilon/(sigma**3) * N_av**-1
 barostatInterval = int(reduced_Pdamp/reduced_timestep)
-
+print ('\nParameters in real units')
 print ('temperature:{}'.format(temperature))
 print ('pressure:{}'.format(pressure))
 print ('friction:{}'.format(friction))
 print ('barostat interval:{}'.format(barostatInterval))
 print ('nonbondedCutoff: {}'.format(nonbondedCutoff))
+
 #========================================
-# Create a system and add particles to it
+#5) Create a system and add particles to it
 #========================================
 system = openmm.System()
 # Particles are added one at a time
 # Their indices in the System will correspond with their indices in the Force objects we will add later
-print ("Adding {} polymer atoms into system".format(NP*DOP))
+print ("\nAdding {} polymer atoms into system".format(NP*DOP))
 for index in range(NP*DOP):
     system.addParticle(mass)
 print ("Adding {} solvent atoms into system".format(NS))
@@ -131,12 +160,12 @@ else: #use rectangular box where L is the length of box in the direction of the 
 	box_edge_short = (volume/L)**(1./2.)
 	box_edge = [box_edge_short]*3
 	box_edge[axis] = L
-	print ('Box dimensions {}'.format(box_edge))
+print ('Box dimensions {}'.format(box_edge))
 box_vectors = np.diag([edge/angstrom for edge in box_edge]) * angstroms
 system.setDefaultPeriodicBoxVectors(*box_vectors)
 
 #==================
-##CREATE TOPOLOGY##
+#6) Create topology
 #==================
 #Topology consists of a set of Chains 
 #Each Chain contains a set of Residues, 
@@ -165,12 +194,12 @@ def makeTop(NP,NS,DOP):
                     if atomInd > 0:
                         top.addBond(previousAtom,atom)
     return top
-print ("Creating topology")
+print ("\nCreating topology")
 top = makeTop(NP,NS,DOP)
 
-#=========================
-#create HarmonicBondForce#
-#=========================
+#===========================
+#7) create HarmonicBondForce
+#===========================
 bondedForce = openmm.HarmonicBondForce()
 atomIndThusFar = 0 
 for imol in range(NP): #loop over all polymer chain
@@ -181,10 +210,11 @@ for imol in range(NP): #loop over all polymer chain
     atomIndThusFar += counter + 1 #skip the last atom in polymer chain
 system.addForce(bondedForce)
 
-#=============================
-#create custom nonbonded force
-#=============================
+#================================
+#8) create custom nonbonded force
+#================================
 #gaussianFunc = '-A*exp(-B*r^2)'
+#for each pair interaction type, need to add ALL atoms in the system to the force object, only paricles in the InteractionGroup will interact with each other
 Polymer = set()
 Solvent = set()
 for atom in top.atoms():
@@ -203,8 +233,9 @@ PP_nonbondedForce.addInteractionGroup(Polymer,Polymer)
 for i in range(system.getNumParticles()):
 	PP_nonbondedForce.addParticle()
 PP_nonbondedForce.setCutoffDistance(nonbondedCutoff)
+PP_nonbondedForce.setUseLongRangeCorrection(UseLongRangeCorrection)
 system.addForce(PP_nonbondedForce)
-print ("Number of particles in PP nonbonded force:{}".format(PP_nonbondedForce.getNumParticles()))
+print ("\nNumber of particles in PP nonbonded force:{}".format(PP_nonbondedForce.getNumParticles()))
 #Solvent-solvent:
 SS_nonbondedForce = openmm.CustomNonbondedForce('-ASS*exp(-B*r^2)')
 SS_nonbondedForce.setNonbondedMethod(nonbondedMethod)
@@ -214,6 +245,7 @@ SS_nonbondedForce.addInteractionGroup(Solvent,Solvent)
 for i in range(system.getNumParticles()):
         SS_nonbondedForce.addParticle()
 SS_nonbondedForce.setCutoffDistance(nonbondedCutoff)
+SS_nonbondedForce.setUseLongRangeCorrection(UseLongRangeCorrection)
 system.addForce(SS_nonbondedForce)
 print ("Number of particles in SS nonbonded force:{}".format(SS_nonbondedForce.getNumParticles()))
 
@@ -226,21 +258,23 @@ PS_nonbondedForce.addInteractionGroup(Polymer,Solvent)
 for i in range(system.getNumParticles()):
         PS_nonbondedForce.addParticle()
 PS_nonbondedForce.setCutoffDistance(nonbondedCutoff)
+PS_nonbondedForce.setUseLongRangeCorrection(UseLongRangeCorrection)
 system.addForce(PS_nonbondedForce)
 print ("Number of particles in PS nonbonded force:{}".format(PS_nonbondedForce.getNumParticles()))
 
 #force.setUseSwitchingFunction(True) # use a smooth switching function to avoid force discontinuities at cutoff
 #force.setSwitchingDistance(0.8*nonbondedCutoff)
-#===========================
-# Create external potential
-#===========================
+
+#=============================
+#9) create external potential
+#=============================
 external={"U":Uext*epsilon,"NPeriod":Nperiod,"axis":axis ,"planeLoc":planeLoc}
 direction=['x','y','z']
 ax = external["axis"]
 #atomsInExtField = [elementMap[atomname]]
 if external["U"] > 0.0 * kilojoules_per_mole:
-	print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
-	energy_function = 'U*sin(2*pi*NPeriod*({axis}1-r0)/L)'.format(axis=direction[ax])
+        print('Creating sinusoidal external potential in the {} direction'.format(direction[axis]))
+        energy_function = 'U*sin(2*pi*NPeriod*({axis}1-r0)/L)'.format(axis=direction[ax])
         fExt = openmm.CustomCentroidBondForce(1,energy_function)
         fExt.addGlobalParameter("U", external["U"])
         fExt.addGlobalParameter("NPeriod", external["NPeriod"])
@@ -252,34 +286,43 @@ if external["U"] > 0.0 * kilojoules_per_mole:
             fExt.addGroup(range(atomThusFar,atomThusFar+mapping)) #assuming the first NP*DOP atoms are polymer atoms and atom index increases along chain
             fExt.addBond([i], [])
             atomThusFar += mapping
-	system.addForce(fExt)
+        system.addForce(fExt)
 
-#===========================
-## Prepare the Simulation ##
-#===========================
+#==============================
+#10) Prepare the Simulation ##
+#==============================
 if useNPT:
     system.addForce(openmm.MonteCarloBarostat(pressure, temperature, barostatInterval))
 integrator = openmm.LangevinIntegrator(temperature, friction, dt)
-simulation = app.Simulation(top,system, integrator, platform)
-#simulation = app.Simulation(top,system, integrator, platform,platformProperties)
+#use platform if specified, otherwise let omm decide
+if platform:
+    if platformProperties:
+        simulation = app.Simulation(top,system, integrator, platform,platformProperties)
+    else:
+        simulation = app.Simulation(top,system, integrator, platform)
+else:
+    simulation = app.Simulation(top,system, integrator)
+
+#initialize positions
 positions = [box_edge[0]/angstrom,box_edge[1]/angstrom,box_edge[2]/angstrom]*angstrom * np.random.rand(N,3)
 simulation.context.setPositions(positions)
-#Restart and Check point:
-#to load a saved state: simulation.loadState('output.xml')
-simulation.reporters.append(app.checkpointreporter.CheckpointReporter('checkpnt.chk', 1000))
-
+#write initial positions to pdb
 initialpdb = 'trajectory_init.pdb'
 app.PDBFile.writeModel(simulation.topology, positions, open(initialpdb,'w'))
 
-#===========================
-# Minimize and Equilibrate
-#===========================
+#Restart and Check point:
+#to load a saved state: simulation.loadState('output.xml') or simulation.loadCheckpoint('checkpnt.chk')
+simulation.reporters.append(app.checkpointreporter.CheckpointReporter('checkpnt.chk', 1000))
+
+#============================
+#11) Minimize and Equilibrate
+#============================
 if useNVT:
 	ensemble = "NVT"
 else:
 	ensemble = "NPT"
 
-print ("Initialize {} simulation".format(ensemble))
+print ("\nInitialize {} simulation".format(ensemble))
 print ("Running energy minimization")
 simulation.minimizeEnergy(maxIterations=1000)
 simulation.context.setVelocitiesToTemperature(temperature*3)
@@ -288,11 +331,10 @@ simulation.reporters.append(dataReporter_warmup)
 simulation.reporters.append(dcdReporter_warmup)
 simulation.step(equilibrationSteps)
 simulation.saveState('output_warmup.xml')
-#simulation.loadState('output.xml')
 
-#==========
-# Simulate
-#==========
+#=============
+#12) Simulate
+#=============
 print ("Running production")
 simulation.reporters.append(dcdReporter)
 simulation.reporters.append(dataReporter)
@@ -300,8 +342,8 @@ simulation.currentStep = 0
 simulation.step(steps)
 simulation.saveState('output.xml')
 
-t = md.load(traj,top=initialpdb)
-trajOut = traj.split('.')[0] + '.pdb'
-t.save(trajOut)
-trajOut = traj.split('.')[0] + '.lammpstrj'
-t.save(trajOut)
+#t = md.load(traj,top=initialpdb)
+#trajOut = traj.split('.')[0] + '.pdb'
+#t.save(trajOut)
+#trajOut = traj.split('.')[0] + '.lammpstrj'
+#t.save(trajOut)

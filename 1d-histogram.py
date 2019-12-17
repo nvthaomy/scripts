@@ -6,9 +6,20 @@
 # Example usage:
 # python 1d-histogram.py trajectory.dcd topology.pdb -axis 2 -Lx 5 -Ly 5 -Lz 10
 
-import mdtraj
+import mdtraj, os, re
 import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
 
+showPlots = True
+try:
+  os.environ["DISPLAY"] #Detects if display is available
+except KeyError:
+  showPlots = False
+  matplotlib.use('Agg') #Need to set this so doesn't try (and fail) to open interactive graphics window
+#plt.style.use('seaborn-dark')
+matplotlib.rc('font', size=7)
+matplotlib.rc('axes', titlesize=7)
 
 import argparse as ap
 parser = ap.ArgumentParser(description="Get 1D histogram, assuming single species")
@@ -60,3 +71,13 @@ binmid = 0.5*(bins[1:]+bins[0:-1])
 data = np.vstack([binmid,hist]).T
 np.savetxt('xhist.dat',data,header='bin-midpt\tHistogram')
 
+fig,axs = plt.subplots(nrows=1, ncols=1, figsize=[3,2])
+axs.plot(binmid, hist, marker=None,ls='-',lw=0.75,mfc="None",ms=2)
+#axs.legend(loc='best',prop={'size': 5})
+plt.xlabel('{}'.format(['x','y','z'][ax]))
+plt.ylabel('Count')
+title ='{}histogram'.format(['x','y','z'][ax])
+plt.title(title, loc = 'center')
+plt.savefig('_'.join(re.split(' |=|,',title))+'.png',dpi=500,transparent=True,bbox_inches="tight")
+plt.show()
+                
