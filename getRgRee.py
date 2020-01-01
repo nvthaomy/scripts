@@ -5,8 +5,15 @@ import matplotlib.pyplot as plt
 import MDAnalysis as mda
 import mdtraj as md
 
-RgDatName = 'f0.25_RgTimeSeries'
-StatOutName = 'f0.25_RgStat'
+showPlots = True
+try:
+    os.environ["DISPLAY"] #Detects if display is available
+except KeyError:
+    showPlots = False
+    matplotlib.use('Agg') #Need to set this so doesn't try (and fail) to open interactive graphics window
+
+RgDatName = 'RgTimeSeries'
+RgStatOutName = 'RgStat'
 autowarmup = True
 #defulat warmup samples if not using autowarmup
 warmup = 100
@@ -33,6 +40,7 @@ ElementDictionary ={
                     }
 #########################End of input######################
 for i, trajFile in enumerate(trajFiles):
+    Ext = '.dat' #'_'+'.'.join(trajFile.split('.')[:-1]) + '.dat'
     top = tops[i]
     DOP = DOPs[i]
     NP = NPs[i]
@@ -44,8 +52,7 @@ for i, trajFile in enumerate(trajFiles):
     RgTimeseries = [range(traj.n_frames)]
     header = "Frame   "
     
-    StatOutExt = '_'+'.'.join(trajFile.split('.')[:-1]) + '.dat'
-    txt = ""
+    txtRg = ""
 
     #get indices of residues in all chains    
     MoleculeResidueList = []
@@ -66,10 +73,10 @@ for i, trajFile in enumerate(trajFiles):
  
         RgTimeseries.append(Rg.tolist())
         header += 'Rg{}   '.format(j+1)
-        np.savetxt(RgDatName+StatOutExt, np.transpose(RgTimeseries), fmt = '%5.5f', header=header ) 
+        np.savetxt(RgDatName+Ext, np.transpose(RgTimeseries), fmt = '%5.5f', header=header ) 
         
         #do stats
-        file = open(RgDatName+StatOutExt,'r')
+        file = open(RgDatName+Ext,'r')
         if autowarmup:
             warmup,Data,nwarmup = stats.autoWarmupMSER(file, j+1)
             print ("Auto warmup detection with MSER-5 => ",nwarmup)
@@ -88,7 +95,7 @@ for i, trajFile in enumerate(trajFiles):
         lines += "\n  - S.D. (unbiased, biased) = {} {}".format(np.sqrt(unbiasedvar),np.std(Data,ddof=0)) # ddof is correction to 1/N...using ddof=1 returns regular reduced-bias estimator
         lines += "\n  - Min, Max                = {} {}\n".format(min,max)
         print(lines)
-        txt += lines
+        txtRg += lines
 
         RgAvg = mean
         RgStd = np.sqrt(unbiasedvar)
@@ -103,7 +110,7 @@ for i, trajFile in enumerate(trajFiles):
         plt.plot(Rg, "k-")
         plt.xlabel('timestep')
         plt.ylabel('Radius-of-gryation')
-        plt.savefig("Rg{}.pdf".format(j+1),bbox_inches='tight')
+        plt.savefig("Rg{}.png".format(j+1),bbox_inches='tight')
         plt.close()
     
     #get averages of stats
@@ -118,6 +125,6 @@ for i, trajFile in enumerate(trajFiles):
     lines += '\n\n=====================\nTotal Rg average is: {0:2.3f} +/- {1:2.5f}'.format(RgAvg,RgErr)
     lines += '\nTotal Rg avg. correlation time: {0:5.4f} +/- {1:5.6f}'.format(CorrTime, CorrTimeErr)
     print(lines)
-    txt += lines
-    f = open(StatOutName+StatOutExt,'w')
-    f.write(txt)
+    txtRg += lines
+    f = open(RgStatOutName+Ext,'w')
+    f.write(txtRg)
