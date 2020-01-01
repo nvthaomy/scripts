@@ -1,0 +1,23 @@
+"""get average Rg from Rg of single polymer chains, input files from lammps"""
+
+import numpy as np,argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", "--input", nargs='+',required=True,help="rg_avg.txt file")
+args = parser.parse_args()
+
+rg=[]
+print "rg of single chains:"
+with open('rg_analysis.txt','w') as outfile:
+	outfile.write('rg of single chains:\n')
+	for txt in args.input:
+		f=open(txt,'r')
+		s=f.readline()
+		while len(s):
+			if len(s.split()) == 2 and not s.startswith('#'):
+				rg.append(float(s.split()[1]))
+				print "{}".format(round(float(s.split()[1]),4))
+				outfile.write('{}\n'.format(round(float(s.split()[1]),4)))
+			s=f.readline()
+	outfile.write("Average rg is {} +/- {}".format(np.mean(rg),np.std(rg)))
+print "Average rg is {} +/- {}".format(np.mean(rg),np.std(rg))
+
