@@ -8,16 +8,9 @@ Created on Wed Apr 17 11:27:27 2019
 import re
 import argparse
 """Convert OpenMM log.txt to a text file that can be read by stats.py"""
-
-parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--input", nargs='+',required=True,help="log.txt file")                 
-parser.add_argument("-fi",default = 'openmm', help="lammps or openmm")
-parser.add_argument("-s",default = 'production',
-                    help="only if input file is lammps log file: warm-up or production")
-parser.add_argument("-nd", help = "Turn on nondimensionalization", action="store_true")
-args = parser.parse_args()
 def log2txt_lammps(logfiles,section,section_name): 
     start_of_section = False
+    logsOut = []
     for log in logfiles:
         logOut ='log_'+ section_name
         with open(log,'r') as infile:
@@ -44,9 +37,11 @@ def log2txt_lammps(logfiles,section,section_name):
                                     s = False
                     else:
                                     s=infile.readline()
-                    
+        logsOut.append(logOut)
+    return logsOut                    
 def log2txt_openmm(logfiles):
     """reading multiple log files and convert to readable text files"""
+    logsOut = []
     for log in logfiles:
         logOut = 'data'+log[len('log'):]
         time_on = False
@@ -76,8 +71,11 @@ def log2txt_openmm(logfiles):
                         outfile.write(s)
                         outfile.write('\n')
                     s = infile.readline()
+        logsOut.append(logOut)
+    return logsOut
 def log2txt_openmm_nondim(logfiles,epsilon,sigma,mass):
     """read multiple log files, nondimensionalize and convert to readable text files"""
+    logsOut = []
     for log in logfiles:
         N_av = 6.022140857*10**23 #/mol
         kb = 1.380649*10**(-23)* N_av * 10**-3 #KJ/kelvin/mol
@@ -133,17 +131,27 @@ def log2txt_openmm_nondim(logfiles,epsilon,sigma,mass):
                         outfile.write(s)
                         outfile.write('\n')
                     s = infile.readline()    
-if args.fi == 'openmm':   
-    if args.nd:
-        epsilon = float(raw_input('\nEnter energy scale (kJ/mol) :'))
-        sigma = float(raw_input('\nEnter length scale (nm) :'))
-        mass = float(raw_input('\nEnter mass scale (g/mol) :'))
-        log2txt_openmm_nondim(args.input,epsilon,sigma,mass)
-    else:
-        log2txt_openmm(args.input)
-elif args.fi == 'lammps':
-    if args.s == 'production':
-        section = 'PRODUCTION RUNS'
-    elif args.s == 'warm-up':
-        section = 'WARM-UP'
-    log2txt_lammps(args.input,section,args.s)
+        logsOut.append(logOut)
+    return logsOut
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--input", nargs='+',required=True,help="log.txt file")
+    parser.add_argument("-fi",default = 'openmm', help="lammps or openmm")
+    parser.add_argument("-s",default = 'production',
+                    help="only if input file is lammps log file: warm-up or production")
+    parser.add_argument("-nd", help = "Turn on nondimensionalization", action="store_true")
+    args = parser.parse_args()
+    if args.fi == 'openmm':   
+        if args.nd:
+            epsilon = float(raw_input('\nEnter energy scale (kJ/mol) :'))
+            sigma = float(raw_input('\nEnter length scale (nm) :'))
+            mass = float(raw_input('\nEnter mass scale (g/mol) :'))
+            log2txt_openmm_nondim(args.input,epsilon,sigma,mass)
+        else:
+            log2txt_openmm(args.input)
+    elif args.fi == 'lammps':
+        if args.s == 'production':
+            section = 'PRODUCTION RUNS'
+        elif args.s == 'warm-up':
+            section = 'WARM-UP'
+        log2txt_lammps(args.input,section,args.s)
