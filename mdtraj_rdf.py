@@ -1,74 +1,61 @@
-import mdtraj,matplotlib ,os
+import mdtraj,matplotlib ,os, re
 import matplotlib.pyplot as plt  
-import os
 import argparse
-"""get polymer-polymer and polymer-solvent RDF using mdtraj
-   currently assuming """
+import numpy as np
+
+showPlots = True
+try:
+  os.environ["DISPLAY"] #Detects if display is available
+except KeyError:
+  showPlots = False
+  matplotlib.use('Agg') #Need to set this so doesn't try (and fail) to open interactive graphics window
+#plt.style.use('seaborn-dark')
+matplotlib.rc('font', size=7)
+matplotlib.rc('axes', titlesize=7)
+
+
 parser = argparse.ArgumentParser()
-parser.add_argument("-i",required=True,help="trajectory in pdb format")
-parser.add_argument("-N", required = True, help = "DOP")
-parser.add_argument("-np", required = True, help = "number of chains")
-parser.add_argument("-L",type=float,help = "box length")
+parser.add_argument('coordfile',type=str, help="trajectory file")
+parser.add_argument('topfile',type=str, help="topology file")
+parser.add_argument('atom1', type=str, help='name of the 1st atom type')
+parser.add_argument('atom2', type=str, help='name of the 2nd atom type')
+parser.add_argument('-nbins',type=int, default=1000, help="Number of bins")
+parser.add_argument('-rmax',type=float, default=1., help="Max distance")
+parser.add_argument('-stride',type=int, default=1, help="stride")
 args = parser.parse_args()
+#####
+coordfile = args.coordfile
+topfile = args.topfile
+atom1 = args.atom1
+atom2 = args.atom2
+nbins = args.nbins
+rmax = args.rmax
+stride = args.stride
 
-traj = args.i
-pair1='polymer-solvent'
-pair2='polymer-polymer'
-L = args.L
-f=open(traj,'r')
-s=f.readline()
-line_num = 1
-Box = False 
-while len(s):
-	if 'CRYST1' in s:
-		Box = True
-		break
-	if line_num > 10 and not Box:
-		f.close()
-		new_t = 'trajectory_box.pdb'
-		new_traj = open(new_t,'w')
-		f=open(traj,'r')
-		line=f.readline()
-		line_old = ''
-		while len(line):
-			if "REMARK" in line_old: 
-				new_traj.write('CRYST1   {:.3f}   {:.3f}   {:.3f}  90.00  90.00  90.00 P 1           1\n'.format(L,L,L))
-			new_traj.write(line)
-			line_old = line
-			line=f.readline()
-		traj = new_t
-	s=f.readline()
-	line_num += 1
-t=mdtraj.load(traj)
-#t.save('trajectory.xyz')
-top = t.topology
-P=[]
-S=[]
-for atom_index in range(t.n_atoms):
-	atom_name = str(top.atom(atom_index))
-	if atom_name =="Pol1-P":
-		P.append(atom_index)
-	elif atom_name =="Sol1-S":
-		S.append(atom_index)
-for pair in [pair1,pair2]:
-	if pair == 'polymer-solvent':
-		pairs = top.select_pairs(selection1=P, selection2=S)
-	elif pair == 'polymer-polymer':
-		pairs = top.select_pairs(selection1=P, selection2=P)
-	r,g_r=mdtraj.compute_rdf(t,pairs=pairs,r_range=(0,1),n_bins=200)
-	name='rdf_{}.txt'.format(pair)
-	f=open(name,'w')
-	f.write('# r g_r_{}\n'.format(pair))
-	for i in range(len(r)):
-		f.write('{}    {}\n'.format(r[i],g_r[i]))
-	f.close()
+print("... Loading Trajectory ...")
+traj = mdtraj.load(coordfile,top=topfile,stride=stride)
+top = traj.topology
+print("... Done Loading ...")
+Lx,Ly,Lz = traj.unitcell_lengths[0,0], traj.unitcell_lengths[0,1], traj.unitcell_lengths[0,2] #assuming constant box shape
+box = np.array([traj.unitcell_lengths[0,0], traj.unitcell_lengths[0,1], traj.unitcell_lengths[0,2]]) #assuming constant box shape
 
-#plt.figure()
-#plt.plot(r,g_r,label=pair1) 
+V   = Lx*Ly*Lz
 
-#plt.plot(r,g_r,label=pair2)
-#plt.xlabel('r') 
-#plt.ylabel('g_{}(r)')
-#plt.xlim(0) 
-#plt.ylim(0)
-#plt.show() 
+atoms1 = top.select("name '{}'".format(atom1))
+atoms2 = top.select("name '{}'".format(atom2))
+
+pairs = top.select_pairs(selection1=atoms1, selection2=atoms2)
+r,g_r=mdtraj.compute_rdf(traj,pairs=pairs,r_range=(0,rmax),n_bins=nbins)
+
+name='rdf_{}_{}'.format(atom1,atom2)
+data = np.vstack([r, g_r]).T
+np.savetxt(name+'.dat',data,header='r\tg_r')
+
+fig,axs = plt.subplots(nrows=1, ncols=1, figsize=[3,2])
+axs.plot(r, g_r, marker=None,ls='-',lw=0.75,mfc="None",ms=2)
+plt.xlabel('r (nm)')
+plt.ylabel('$g(r)$')
+title ='rdf {} {}'.format(atom1,atom2)
+plt.title(title, loc = 'center')
+plt.savefig('_'.join(re.split(' |=|,',title))+'.png',dpi=500,transparent=True,bbox_inches="tight")
+plt.show()

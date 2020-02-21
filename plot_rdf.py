@@ -20,16 +20,18 @@ matplotlib.rc('axes', titlesize=7)
 colors = ['#6495ED','r','#6da81b','#483D8B','#FF8C00','#2E8B57','#800080','#008B8B','#1E90FF'] 
 ################################
 
-plotTitle = 'Ree vs DOP xp0.1 f0 LJPME 298K'
-ylabel = '$R_{ee}$ (nm)'
-xlabel = 'DOP'
-x = [12,24,48,60,90]
+plotTitle = 'rdf vs NaCl xp0.1 N12 f1 LJPME 298K'
+ylabel = 'g(r)'
+xlabel = 'r (nm)'
+legends = [0,100,500,1000,2000,4000]
 Dirs = [
-'../xp0.1_N12_f0_V157_LJPME_298K/f0/w0.13/NPT/run2',
-'../xp0.1_N24_f0_V157_LJPME_298K/f0/w0.14',
-'../xp0.1_N48_f0_V512_LJPME_298K/f0/w0.13',
-'../xp0.1_N60_f0_V512_LJPME_298K/f0/w0.14/run1',
-'../xp0.1_N90_f0_V588_LJPME_298K/f0/w0.14/run1']
+'../xp0.1_N12_f1_V157_LJPME_298K/f1/w0.13/NPT/run2',
+'../xp0.1_N12_f1_9NaCl_V157_LJPME_298K/f1/w0.13',
+'../xp0.1_N12_f1_47NaCl_V157_LJPME_298K/f1/w0.13',
+'../xp0.1_N12_f1_94NaCl_V157_LJPME_298K/f1/w0.13',
+'../xp0.1_N12_f1_189NaCl_V157_LJPME_298K/f1/w0.13',
+'../xp0.1_N12_f1_379NaCl_V157_LJPME_298K/f1/w0.13']
+
 
 #x = [0,0.17, 0.25, 0.33, 0.5, 0.67, 0.75, 0.83, 0.92, 1.]
 #Dirs = [
@@ -44,53 +46,31 @@ Dirs = [
 #'../xp0.1_N12_f0.92_V157_LJPME_298K/f0.92/w0.13/NPT',
 #'../xp0.1_N12_f1_V157_LJPME_298K/f1/w0.13/NPT/run2']
 
-dataFName = 'AllStats.dat'
-keywords = 'Ree'
-avgCol = 0
-errCol = 2
-fitRg = True
+dataFName = 'rdf_OD1_Na+.dat'
+rColId = 0
+rdfColId = 1
 ##################
-def R(N,b,v):
-    return b*N**v
-
-def curvefit(func, x, y):
-    from scipy.optimize import curve_fit
-    params, params_covariance = curve_fit(func, x, y)
-    params_errors = np.sqrt(np.diag(params_covariance))
-    return params,params_errors
-
 #check
-if len(x) != len(Dirs):
-    Exception('Mismatch in sizes of x and Dirs')
-RgAvgs = []
-RgErrs = []
+if len(legends) != len(Dirs):
+    Exception('Mismatch in sizes of legends and Dirs')
+rdfs = []
+rs = []
 cwd = os.getcwd()
 for i, dir in enumerate(Dirs): 
-    num = []
     f = open(os.path.join(dir+'/',dataFName), 'r')
-    lines = f.readlines()
-    for line in lines:
-        if keywords in line:
-            vals = line.split()
-            for val in vals:
-                try:
-                    val = float(val)
-                    num.append(val)
-                except:
-                    pass
-            RgAvgs.append(num[avgCol])
-            RgErrs.append(num[errCol])
-if fitRg:    
-    [b,v], [bErr,vErr] = curvefit(R, x, RgAvgs)
-    str = "$%s = %5.3f \pm %5.3f N^{%5.3f\pm%5.3f}$"%(keywords,b,bErr,v,vErr)
-else:
-    str = ""
+    data = np.loadtxt(f)
+    r = data[:,rColId]
+    rdf = data[:,rdfColId] 
+    rdfs.append(rdf)
+    rs.append(r)
+
 fig,ax = plt.subplots(nrows=1, ncols=1, figsize=[3,2])
 ax.set_prop_cycle('color', colors)
-ax.errorbar(x, RgAvgs, yerr=RgErrs, elinewidth=0.75, marker='o', ls=':', lw=1, ms=4, capsize=2)
+for i,legend in enumerate(legends):
+    ax.plot(rs[i], rdfs[i], marker='None', ls='-', lw=1, ms=4,label = legend)
 plt.ylabel(ylabel)
 plt.xlabel(xlabel)
-plt.text(0.75*np.mean(x),np.mean(RgAvgs),str)
+plt.legend(loc='best')
 title = plotTitle
 plt.title(title,loc='center')
 plt.savefig('_'.join(title.split())+'.png',dpi=500,bbox_inches='tight')
