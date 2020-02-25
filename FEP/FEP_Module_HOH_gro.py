@@ -15,10 +15,9 @@ import stats_openmm as stats
 from scipy.optimize import least_squares
 import sys
 """Assumptions:
-   If more than 1 residues, delete them with same frequency
    Topology sequence of system0 is n0 Na+, n0 Cl-, nw HOH
-   Topology sequence of system1 is Na+, n0 Na+, Cl-, n0 Cl-, nw HOH
-	Inserting new Na+ before old Na+'s, new Cl- before old Cl-'s
+   Topology sequence of system1 is n0 Na+, n0 Cl-, nw+1 HOH
+       insert new HOH at the end
    M.N: Modified for insertion in NPT (record box lengths in x y z and in every frames)
 """
 
@@ -455,7 +454,6 @@ class FEP:
         atoms_masses_list = [] #list of lists of atom masess in residues to be inserted
         for i, res_name in enumerate(res_names):      
             atoms_masses = []
-            print(model_res)
             for atom in temp_top.residue(model_res[i][0]).atoms: # add atoms to temp_residue
                 t_name         = atom.name
                 t_element     = atom.element
@@ -467,7 +465,7 @@ class FEP:
             DrawPerFrame = 1
         elif DrawPerFrame > NumberMolecules:
             DrawPerFrame = NumberMolecules
-            print('WARNING: DrawPerFrame > NumberMolecules ; setting to NumberMolecules.'.format(NumberMolecules))
+            print('WARNING: DrawPerFrame > NumberMolecules ; setting to {}.'.format(NumberMolecules))
         
         # Generate random integers for selecting molecules 
         MoleculeIndices2DrawList = []
@@ -609,8 +607,7 @@ class FEP:
             PBar.Update(i)
             time_start = time.time() # time how long it takes
             # update the initial positions, positions for additional NaCl pair is still 0
-            xyz[0][1:CLId+1] = traj[i].xyz[0][0:CLId]
-            xyz[0][CLId+2:] = traj[i].xyz[0][CLId:]
+            xyz[0][0:(-1*int(tot_atoms_added))]=traj[i].xyz[0] 
             
             if ReRunRefState:
                 simulation0.context.setPeriodicBoxVectors(box[0],box[1],box[2])
@@ -629,11 +626,9 @@ class FEP:
             for j in range(self.NumberInsertionsPerFrame):
                 for k, atoms_added in enumerate(atoms_added_List):
                     NewPositions_List = NewPositions_Lists[k]
-                    if k == 0:
-                        t_index = 0
-                    elif k==1:
-                        t_index = CLId+1
-                    xyz[0][t_index] = NewPositions_List[i][j][0] 
+                    for ind in range(atoms_added):
+                        t_index = int(atoms_added-ind)
+                        xyz[0][(-1*t_index)] = NewPositions_List[i][j][ind]
                 
                 temp_traj = md.Trajectory(xyz,temp_top)
                 
@@ -673,6 +668,7 @@ class FEP:
         box =  traj[0].unitcell_vectors[0]        
         NumberMolecules = traj[0].n_residues
         PotEne_Data = []
+        
         PBar = ProgressBar('Deletion Progress:', Steps = (NumberFrames-1), BarLen = 20, UpdateFreq = 1.)
         
         # Create list of indices of residues that can be deleted
@@ -695,14 +691,12 @@ class FEP:
                     if res_name == residue.name:
                         temp_resid_list.append(resid)
                 temp_resid_lists.append(temp_resid_list)
-                NumberMoleculesList.append(len(temp_resid_list))
             model_res = temp_resid_lists # indices of residues of types res_names
-            print('NumberMolecules {}'.format(NumberMolecules))
             NumberMolecules = len(model_res[0])
         
         self.SetResidueIndiceList_Deletions(model_res) # for record keeping
         
-        if NumberMolecules< 10:
+        if NumberMolecules < 10:
             print('WARNING: There are only {} molecules to select from for deletions. Is this correct?'.format(int(NumberMolecules)))
 
         atoms_masses_list=[]
@@ -720,7 +714,7 @@ class FEP:
             NumberDeletionAttemptsPerFrame = 1
         elif NumberDeletionAttemptsPerFrame > NumberMolecules:
             NumberDeletionAttemptsPerFrame = NumberMolecules
-            print('WARNING: NumberDeletionAttemptsPerFrame > NumberMolecules ; setting to NumberMolecules {}.'.format(NumberMolecules))
+            print('WARNING: NumberDeletionAttemptsPerFrame > NumberMolecules ; setting to {}'.format(NumberMolecules))
         
         MoleculeIndices2DeleteList = []
         RandomSelect = False
@@ -728,7 +722,7 @@ class FEP:
             # Select which residues to delete
             MoleculeIndices2Delete = []
             if RandomSelect: # Not Recommended
-                temp = np.random.randint(0,(NumberMoleculesList[0]),size=(NumberFrames,NumberDeletionAttemptsPerFrame))
+                temp = np.random.randint(0,(NumberMolecules),size=(NumberFrames,NumberDeletionAttemptsPerFrame))
                 for j in temp: 
                     temp_temp = [resid[i] for i in j]
             
@@ -1051,20 +1045,19 @@ class FEP:
                 
                 if traj_index == 0: # do insertions first 
                     # State0to1 is going from high to low entropy (i.e. inserting a molecule)
-                    if self.NumberInsertionsPerFrame > 0: 
-                        # Generate Molecular Conformation Library
-                        NewPositions_Lists = self.GenerateMoleculeConfigsInsertions(traj,self.NumberDrawsPerFrame,self.NumberInsertionsPerFrame)                
                     
-                        # Do Insertions
-                        PotEne_Data_0to1_List, PotEne_State0_List = self.PerformInsertions(traj,self.states_list[0],self.states_list[1],NewPositions_Lists,self.thermo_files_list[0],self.ReRunRefState)
+                    # Generate Molecular Conformation Library
+                    NewPositions_Lists = self.GenerateMoleculeConfigsInsertions(traj,self.NumberDrawsPerFrame,self.NumberInsertionsPerFrame)                
                     
-                        if len(PotEne_State0_List) > 0 and len(self.thermo_files_list[0]) != 0:
-                            self.thermo_files_list.append(PotEne_State0_List) # this way do not have to rerun ref. state twice 
+                    # Do Insertions
+                    PotEne_Data_0to1_List, PotEne_State0_List = self.PerformInsertions(traj,self.states_list[0],self.states_list[1],NewPositions_Lists,self.thermo_files_list[0],self.ReRunRefState)
                     
-                        if self.number_states == 1: # Approximate state 1 --> 0 with deletions, i.e. do not have two thermo_files in the thermo_files_list
-                            PotEne_Data_1to0_List = self.PerformDeletions(traj,self.states_list[0],self.states_list[2],self.NumberDeletionsPerFrame,self.thermo_files_list[0],self.ReRunRefState)
-                    else: #if dont do insertion, rerun state to get PE
-                        PotEne_Data_1to0_List = self.PerformDeletions(traj,self.states_list[0],self.states_list[2],self.NumberDeletionsPerFrame,self.thermo_files_list[0],True) 
+                    if len(PotEne_State0_List) > 0 and len(self.thermo_files_list[0]) != 0:
+                        self.thermo_files_list.append(PotEne_State0_List) # this way do not have to rerun ref. state twice 
+                    
+                    if self.number_states == 1: # Approximate state 1 --> 0 with deletions, i.e. do not have two thermo_files in the thermo_files_list
+                        PotEne_Data_1to0_List = self.PerformDeletions(traj,self.states_list[0],self.states_list[2],self.NumberDeletionsPerFrame,self.thermo_files_list[0],self.ReRunRefState)
+                
                 elif self.number_states == 2 and traj_index == 1: # Have actual state 1 trajectory (N+1) and need to reweight to N 
                     PotEne_Data_1to0_List = self.PerformDeletions(traj,self.states_list[1],self.states_list[0],self.NumberDeletionsPerFrame,self.thermo_files_list[1],self.ReRunRefState)
                 
