@@ -31,6 +31,7 @@ nThreads = 6
 #FEP vars
 unit = 'kJ/mol' 
 resNames = ['Na+','Cl-'] #name of residues to insert in each frame
+unit = 'kJ/Mol'
 nDraw = 1
 nInsert = 100
 nDelete = 100
@@ -183,6 +184,14 @@ if CalcChemPot:
     s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
     s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
     s += "\nBennett's Constant: %4.4f %s"%(FEP_Object.dF,unit)
+    print(s)
+    f = open('chemicalPot.dat','w')
+    f.write(s)
+
+    s = 'Excess chemical potential calculation for {}'.format(resNames)
+    s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
+    s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
+    s += "\nBennett's Constant: %4.4f %s"%(float(FEP_Object.dF),unit)
     print(s)
     f = open('chemicalPot.dat','w')
     f.write(s)
