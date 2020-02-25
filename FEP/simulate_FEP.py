@@ -29,6 +29,7 @@ tail =False
 nonbondedCutoff = 0.9*nanometers
 nThreads = 6
 #FEP vars
+unit = 'kJ/mol' 
 resNames = ['Na+','Cl-'] #name of residues to insert in each frame
 nDraw = 1
 nInsert = 100
@@ -107,7 +108,7 @@ for i, frc in enumerate(system0.getForces()):
 traj_load = md.load(traj_file,top=top_file, stride=TrajSlice)
 traj_load = traj_load[Warmup::]
 PotEne_Data = PotEne_Data[Warmup::]
-
+nFrames = len(traj_load)
 print('Number of frames in trajectory: {}'.format(len(traj_load)))
 print('Number of entries in thermo. file: {}'.format(len(PotEne_Data)))
 
@@ -177,6 +178,14 @@ if CalcChemPot:
     # Report the free energy change in KJ/mole
     print("dF: {0:4.4f} +/- {1:2.5f} KJ/mole".format(FEP_Object.dF,FEP_Object.dF_stderr))
     print("Bennett's Constant: {0:4.4f} KJ/mole".format(float(FEP_Object.BennettsConstant)))
+    
+    s = 'Excess chemical potential calculation for {}'.format(resNames)
+    s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
+    s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
+    s += "\nBennett's Constant: %4.4f %s"%(FEP_Object.dF,unit)
+    print(s)
+    f = open('chemicalPot.dat','w')
+    f.write(s)
 
 if CalcPressure: 
     ''' Calculating the Pressure '''
