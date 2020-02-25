@@ -15,8 +15,9 @@ trajs = args.traj
 top = sys.argv[1]
 ext = sys.argv[2]
 stride = args.stride
+cwd = os. getcwd()
 
-outTraj = 'traj_combined.'+ext 
+outTraj = './traj_combined.'+ext 
 trajDict = {}
 trajAll = 0
 print('Loading trajectory')
