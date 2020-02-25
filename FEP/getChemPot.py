@@ -48,3 +48,13 @@ print(s)
 f = open('chemicalPot.dat','w')
 f.write(s)
 
+import matplotlib.pyplot as plt
+
+plt.bar(dU_0to1,weights_0to1,color = 'r', label='Insertion')
+plt.bar(-dU_1to0,weights_1to0,color = 'k', label='Deletion')
+plt.xlim(-60,1)
+plt.xlabel('dU')
+plt.ylabel('weight')
+plt.legend(loc='best')
+plt.savefig('weights.png',dpi=500,bbox_inches='tight')
+plt.show()
