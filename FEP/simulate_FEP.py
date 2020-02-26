@@ -12,7 +12,7 @@ import mdtraj as md
 import mdtraj.reporters
 import numpy as np
 import stats_openmm as stats
-import FEP_Module_NaCl as FEP
+import FEP_Module_HOH_gro as FEP
 
 fname = 'nacl'
 f = open("sim_{}.log".format(fname), "w")
@@ -27,25 +27,25 @@ useGPU = False
 useLJPME = True
 tail =False
 nonbondedCutoff = 0.9*nanometers
-nThreads = 6
+nThreads = 4
 #FEP vars
 unit = 'kJ/mol' 
-resNames = ['Na+','Cl-'] #name of residues to insert in each frame
+resNames = ['HOH'] #name of residues to insert in each frame
 unit = 'kJ/Mol'
-nDraw = 1
-nInsert = 100
-nDelete = 100
+nDraw =  5
+nInsert = 5
+nDelete = 5
 SetReRunRefState = False
 
 CalcChemPot = True
 CalcPressure = False
 CalcSurfaceTension = False
-ThermoSlice = 5
-TrajSlice = 1
+ThermoSlice =  10
+TrajSlice = 2
 Warmup = 100
-PotEne_Data = np.loadtxt('logNVT.txt',delimiter='\t')[::ThermoSlice,1]
-traj_file = 'trajNVT.dcd' # N-particle state
-top_file = '5880opc_631nacl.parm7'
+PotEne_Data = np.loadtxt('logNPT.txt',delimiter='\t')[::ThermoSlice,1]
+traj_file = 'trajNPT.dcd' # N-particle state
+top_file = '6616opc_122nacl.parm7'
 
 f.write('use GPU {}. \n'.format(useGPU))
 f.write('use LJPME {}. \n'.format(useLJPME))
@@ -71,13 +71,10 @@ else:
 ''' Input files and system object creation. '''
 
 #gro = GromacsGroFile('input.gro')
-top0 = AmberPrmtopFile('5880opc_631nacl.parm7') 
-top1 = AmberPrmtopFile('5880opc_632nacl.parm7')
-top2 = AmberPrmtopFile('5880opc_630nacl.parm7')
-pdb0 = pmd.load_file('5880opc_631nacl.pdb') # N-particles
-pdb1 = pmd.load_file('5880opc_632nacl.pdb') # N+1 particles
-pdb2 = pmd.load_file('5880opc_630nacl.pdb') # N-1 particles
-inpcrd = AmberInpcrdFile('5880opc_631nacl.crd')
+top0 = AmberPrmtopFile('6616opc_122nacl.parm7') 
+top1 = AmberPrmtopFile('6617opc_122nacl.parm7')
+top2 = AmberPrmtopFile('6615opc_122nacl.parm7')
+inpcrd = AmberInpcrdFile('6616opc_122nacl.crd')
 #gro = gromacs.GromacsGroFile.parse('box.gro')
 top0.box = inpcrd.boxVectors 
 top1.box = inpcrd.boxVectors
@@ -150,6 +147,7 @@ FEP_Object = FEP.FEP(method,derivative,traj_list,states_list,thermo_files_list)
 
 if CalcChemPot: 
     ''' Calculate the Chemical Potential (Excess) '''
+    time1 = time.time()
     # Set a variaty of object attributes
     FEP_Object.SetMethod('OB') # optimal-Bennett's method
     FEP_Object.SetDerivative('particle') # particle derivative
@@ -175,23 +173,13 @@ if CalcChemPot:
     # Calculate the free energy difference
     FEP_Object.SetBennettsConstant(-33.8) # Initial guess, KJ/mole
     FEP_Object.Optimal_Bennetts() # Run optimal-Bennetts
-
+    time2 = time.time()
     # Report the free energy change in KJ/mole
-    print("dF: {0:4.4f} +/- {1:2.5f} KJ/mole".format(FEP_Object.dF,FEP_Object.dF_stderr))
-    print("Bennett's Constant: {0:4.4f} KJ/mole".format(float(FEP_Object.BennettsConstant)))
-    
-    s = 'Excess chemical potential calculation for {}'.format(resNames)
-    s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
-    s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
-    s += "\nBennett's Constant: %4.4f %s"%(FEP_Object.dF,unit)
-    print(s)
-    f = open('chemicalPot.dat','w')
-    f.write(s)
-
     s = 'Excess chemical potential calculation for {}'.format(resNames)
     s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
     s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
     s += "\nBennett's Constant: %4.4f %s"%(float(FEP_Object.dF),unit)
+    s += "\nTake %5.3f hours to finish the calculation."%((time2-time1)/3600)
     print(s)
     f = open('chemicalPot.dat','w')
     f.write(s)
