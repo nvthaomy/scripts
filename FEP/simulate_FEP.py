@@ -69,13 +69,19 @@ else:
     properties2 = {'Threads': str(nThreads)}
 
 ''' Input files and system object creation. '''
+#top0 = gromacs.GromacsTopologyFile('6432opc_245nacl.top')
+#top1 = gromacs.GromacsTopologyFile('6433opc_245nacl.top')
+#top2 = gromacs.GromacsTopologyFile('6431opc_245nacl.top')
+#gro = gromacs.GromacsGroFile.parse('box.gro')
+#top0.box = gro.box
+#top1.box = gro.box
+#top2.box = gro.box
 
-#gro = GromacsGroFile('input.gro')
 top0 = AmberPrmtopFile('6616opc_122nacl.parm7') 
 top1 = AmberPrmtopFile('6617opc_122nacl.parm7')
 top2 = AmberPrmtopFile('6615opc_122nacl.parm7')
 inpcrd = AmberInpcrdFile('6616opc_122nacl.crd')
-#gro = gromacs.GromacsGroFile.parse('box.gro')
+
 top0.box = inpcrd.boxVectors 
 top1.box = inpcrd.boxVectors
 top2.box = inpcrd.boxVectors
