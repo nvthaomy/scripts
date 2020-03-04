@@ -635,7 +635,7 @@ class FEP:
                         if nAtoms0+1 != NumAtoms: #Check if number of atoms is correct
                             Exception('Index of inserted atoms does not match total number of atoms')
                         xyz[0][t_index] = NewPositions_List[i][j][0]
-                    elif self.ResidueName[k] in ['WAT','HOH']:
+                    elif self.ResidueName[k] in ['WAT','HOH','SOL']:
                         for ind in range(atoms_added):
                             t_index = int(atoms_added-ind)
                             xyz[0][(-1*t_index)] = NewPositions_List[i][j][ind]
