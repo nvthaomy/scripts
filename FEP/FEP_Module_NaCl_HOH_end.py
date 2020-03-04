@@ -421,7 +421,6 @@ class FEP:
         NumberFrames             = traj.n_frames
         NumberMolecules         = traj.n_residues # assumed to be the number of molecules
         DrawPerFrame             = DrawsPerFrame
-        BoxL = traj[0].unitcell_vectors[0][0][0]
         BoxVecs = traj.unitcell_vectors #box vectors of all frames
         BoxLs = [Vec.diagonal() for Vec in BoxVecs] #box length in x y z of all frames
        
@@ -551,8 +550,6 @@ class FEP:
         NumberFrames = traj.n_frames
         atom_indices = range(traj.n_atoms) 
         nAtoms0 = traj.n_atoms
-        BoxL = traj[0].unitcell_vectors[0][0][0]
-        box =  traj[0].unitcell_vectors[0]
         PotEne_State0 = [] # used if rerunning the ref. state as well.
         PotEne_Data = [] 
         waterId = None        
@@ -611,6 +608,7 @@ class FEP:
             time_start = time.time() # time how long it takes
             # update the initial positions, positions for additional NaCl pair is still 0
             xyz[0][:nAtoms0] = traj[i].xyz[0]
+            box =  traj[i].unitcell_vectors[0]
             
             if ReRunRefState:
                 simulation0.context.setPeriodicBoxVectors(box[0],box[1],box[2])
@@ -620,7 +618,7 @@ class FEP:
                 temp_PotEne_0 = state.getPotentialEnergy().value_in_unit(kilojoules_per_mole)
             else: 
                 temp_PotEne_0 = PotEne_State0_List[i]
-            
+#            print(temp_PotEne_0) 
             PotEne_State0.append(temp_PotEne_0)
             temp_traj0 = md.Trajectory(traj[i].xyz,temp_top0)
             temp_traj0.save_pdb('traj0_Insert.pdb') 
@@ -677,7 +675,6 @@ class FEP:
         
         NumberFrames = traj.n_frames
         BoxL = traj[0].unitcell_vectors[0][0][0]
-        box =  traj[0].unitcell_vectors[0]        
         NumberMolecules = traj[0].n_residues
         PotEne_Data = []
         PBar = ProgressBar('Deletion Progress:', Steps = (NumberFrames-1), BarLen = 20, UpdateFreq = 1.)
@@ -748,9 +745,9 @@ class FEP:
         for i in range(NumberFrames):
             
             PBar.Update(i)
-            
             time_start = time.time() # time how long it takes
-            
+            box =  traj[i].unitcell_vectors[0]
+ 
             temp_frame = traj[i].xyz[0]
             if ReRunRefState:
                 simulation0.context.setPeriodicBoxVectors(box[0],box[1],box[2])
@@ -764,7 +761,8 @@ class FEP:
             temp_traj0 = md.Trajectory(traj[i].xyz,temp_top0)
             temp_traj0.save_pdb('traj0_Delete.pdb')
             temp_top = traj[i].topology
-            
+#            print(temp_PotEne_0)    
+
             for j in range(NumberDeletionAttemptsPerFrame):
                 select_expression = ''
                 for k, MoleculeIndices2Delete in enumerate(MoleculeIndices2DeleteList):
@@ -1074,9 +1072,6 @@ class FEP:
                 elif self.number_states == 2 and traj_index == 1: # Have actual state 1 trajectory (N+1) and need to reweight to N 
                     PotEne_Data_1to0_List = self.PerformDeletions(traj,self.states_list[1],self.states_list[0],self.NumberDeletionsPerFrame,self.thermo_files_list[1],self.ReRunRefState)
                 
-                self.dU_0to1 = PotEne_Data_0to1_List
-                self.dU_1to0 = PotEne_Data_1to0_List
-                
             ''' PRESSURE CALCULATION '''
             if self.derivative == 'volume': # calculating pressure
                 print('Applying a volume perturbation...')            
@@ -1118,5 +1113,6 @@ class FEP:
                     
                 self.dU_0to1 = PotEne_Data_0to1_List # expansion
                 self.dU_1to0 = PotEne_Data_1to0_List # contraction    
-                
-            ''' ADD NEW CALCULATIONS HERE '''
+            #''' ADD NEW CALCULATIONS HERE '''        
+        self.dU_0to1 = PotEne_Data_0to1_List
+        self.dU_1to0 = PotEne_Data_1to0_List

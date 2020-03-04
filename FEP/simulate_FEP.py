@@ -7,48 +7,64 @@ from parmed import unit as u
 #from dcdreporter import DCDReporter
 import parmed as pmd
 import time
-from openmmtools import *
+#from openmmtools import *
 import mdtraj as md
 import mdtraj.reporters
 import numpy as np
-import stats_openmm as stats
-import FEP_Module_HOH_gro as FEP
+import sys
+
+#sys.path.append('/home/mnguyen/bin/scripts/FEP/')
+
+import FEP_Module_NaCl_HOH_end as FEP
 
 fname = 'nacl'
 f = open("sim_{}.log".format(fname), "w")
 
 ''' State Variables ''' 
 Temp = (298.15)
+pressure = 1.*bar
+barostatInterval=25
 friction = 5*picoseconds 
+ewaldErrorTolerance = 0.0001
+constraintTolerance = 0.000001
 f.write('temperature = {} K \n'.format(Temp))
 
 '''  Simulation Specifications '''
 useGPU = False
-useLJPME = True
-tail =False
+nonbondedMethod = PME
+tail = True
 nonbondedCutoff = 0.9*nanometers
 nThreads = 4
 #FEP vars
 unit = 'kJ/mol' 
-resNames = ['HOH'] #name of residues to insert in each frame
+resNames = ['NA+','CL-'] #name of residues to insert in each frame
 unit = 'kJ/Mol'
-nDraw =  5
-nInsert = 5
-nDelete = 5
-SetReRunRefState = False
+nDraw =  1
+nInsert = 1
+nDelete = 1
+SetReRunRefState = True
 
 CalcChemPot = True
 CalcPressure = False
 CalcSurfaceTension = False
-ThermoSlice =  10
-TrajSlice = 2
-Warmup = 100
-PotEne_Data = np.loadtxt('logNPT.txt',delimiter='\t')[::ThermoSlice,1]
-traj_file = 'trajNPT.dcd' # N-particle state
-top_file = '6616opc_122nacl.parm7'
+ThermoSlice =  20
+TrajSlice = 20
+Warmup = 0
+
+traj_file0 = '../NaCl5_water500_L2.5nm/trajectory298.dcd' # N-particle state
+top_file0 = 'NaCl5_water500_L2.5nm.pdb'
+PotEne_Data0 = np.loadtxt('../NaCl5_water500_L2.5nm/data298.txt',delimiter='  ')[::ThermoSlice,2]
+
+traj_file1 = '../NaCl6_water500_L2.5nm/trajectory298.dcd' # N+1-particle state, set None to ignore
+if traj_file1 != None:
+    top_file1 = 'NaCl6_water500_L2.5nm.pdb'
+    PotEne_Data1 = np.loadtxt('../NaCl6_water500_L2.5nm/data298.txt',delimiter='  ')[::ThermoSlice,2]
+else:
+    top_file1 = None
+    PotEne_Data1 = None
 
 f.write('use GPU {}. \n'.format(useGPU))
-f.write('use LJPME {}. \n'.format(useLJPME))
+f.write('nonbonded method {}. \n'.format(nonbondedMethod))
 f.write('use dispersion correction {}. \n'.format(tail))
 
 ''' Platform specifications. '''
@@ -69,77 +85,87 @@ else:
     properties2 = {'Threads': str(nThreads)}
 
 ''' Input files and system object creation. '''
-#top0 = gromacs.GromacsTopologyFile('6432opc_245nacl.top')
-#top1 = gromacs.GromacsTopologyFile('6433opc_245nacl.top')
-#top2 = gromacs.GromacsTopologyFile('6431opc_245nacl.top')
-#gro = gromacs.GromacsGroFile.parse('box.gro')
-#top0.box = gro.box
-#top1.box = gro.box
-#top2.box = gro.box
+top0 = gromacs.GromacsTopologyFile('../build/NaCl5_water500_L2.5nm.top')
+top1 = gromacs.GromacsTopologyFile('../build/NaCl6_water500_L2.5nm.top')
+top2 = gromacs.GromacsTopologyFile('../build/NaCl5_water500_L2.5nm.top')
+gro = gromacs.GromacsGroFile.parse('../build/box.gro')
+top0.box = gro.box
+top1.box = gro.box
+top2.box = gro.box
 
-top0 = AmberPrmtopFile('6616opc_122nacl.parm7') 
-top1 = AmberPrmtopFile('6617opc_122nacl.parm7')
-top2 = AmberPrmtopFile('6615opc_122nacl.parm7')
-inpcrd = AmberInpcrdFile('6616opc_122nacl.crd')
+#top0 = AmberPrmtopFile('6616opc_122nacl.parm7') 
+#top1 = AmberPrmtopFile('6617opc_122nacl.parm7')
+#top2 = AmberPrmtopFile('6615opc_122nacl.parm7')
+#inpcrd = AmberInpcrdFile('6616opc_122nacl.crd')
 
-top0.box = inpcrd.boxVectors 
-top1.box = inpcrd.boxVectors
-top2.box = inpcrd.boxVectors
-system0 = top0.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=0.001, rigidWater=True) #constraints=HBonds, 
-system1 = top1.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=0.001, rigidWater=True) #constraints=HBonds, 
-system2 = top2.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=0.001, rigidWater=True) #constraints=HBonds, 
-
-if useLJPME:
-    nbm = NonbondedForce.LJPME
-else:
-    nbm = NonbondedForce.PME
-
-''' Get the different forces. '''
-farray = [f for ii, f in enumerate(system0.getForces()) if isinstance(f,NonbondedForce)]
-fnb = farray[0]
-fnb.setNonbondedMethod(nbm) # set non-bonded method
-f.write("Nonbonded method: {} \n".format(fnb.getNonbondedMethod()))
-
-# Disable the long-range vdW correction
-for i, frc in enumerate(system0.getForces()):
-    if (isinstance(frc, NonbondedForce)):
-        f.write('The dispersion correction setting is: {}.\n'.format(frc.getUseDispersionCorrection()))
-        frc.setUseDispersionCorrection(True)
-        f.write('The dispersion correction setting is: {}.\n'.format(frc.getUseDispersionCorrection()))
-
+#top0.box = inpcrd.boxVectors 
+#top1.box = inpcrd.boxVectors
+#top2.box = inpcrd.boxVectors
 
 ''' Start of FEP Stuff '''
-traj_load = md.load(traj_file,top=top_file, stride=TrajSlice)
-traj_load = traj_load[Warmup::]
-PotEne_Data = PotEne_Data[Warmup::]
-nFrames = len(traj_load)
-print('Number of frames in trajectory: {}'.format(len(traj_load)))
-print('Number of entries in thermo. file: {}'.format(len(PotEne_Data)))
+traj_load0 = md.load(traj_file0,top=top_file0, stride=TrajSlice)
+traj_load0 = traj_load0[Warmup::]
+PotEne_Data0 = PotEne_Data0[Warmup::]
+nFrames0 = len(traj_load0)
+print(PotEne_Data0[0:10])
 
-if len(traj_load) != len(PotEne_Data):
+print('Number of frames in trajectory: {}'.format(len(traj_load0)))
+print('Number of entries in thermo. file: {}'.format(len(PotEne_Data0)))
+if traj_file1 != None:
+    traj_load1 = md.load(traj_file1,top=top_file1, stride=TrajSlice)
+    traj_load1 = traj_load1[Warmup::]
+    PotEne_Data1 = PotEne_Data1[Warmup::]
+    nFrames1 = len(traj_load1)
+    print('Number of frames in trajectory: {}'.format(len(traj_load1)))
+    print('Number of entries in thermo. file: {}'.format(len(PotEne_Data1)))
+
+if len(traj_load0) != len(PotEne_Data0):
     print("WARNING: The number of entries in the trajectory and thermo. file do not match!")
 
 # State 0: N ; re-defined here just for clarity
-system0 = top0.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=1E-7, rigidWater=True)
+system0 = top0.createSystem(nonbondedMethod=nonbondedMethod, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=ewaldErrorTolerance, rigidWater=True)
+for i, frc in enumerate(system0.getForces()):
+    if (isinstance(frc, NonbondedForce)):
+        frc.setUseDispersionCorrection(tail)
+        print('The dispersion correction setting for system0 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+        f.write('The dispersion correction setting for system0 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+system0.addForce(MonteCarloBarostat(pressure,Temp,barostatInterval))
 integrator0 = LangevinIntegrator(Temp*kelvin, friction, 0.002*picoseconds)
 simulation0 = Simulation(top0.topology, system0, integrator0, platform0, properties0)
     
 if CalcChemPot:
     # State 1: N+1
-    system1 = top1.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=1E-7, rigidWater=True)
+    system1 = top1.createSystem(nonbondedMethod=nonbondedMethod, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=ewaldErrorTolerance, rigidWater=True)
+    for i, frc in enumerate(system1.getForces()):
+        if (isinstance(frc, NonbondedForce)):
+            frc.setUseDispersionCorrection(tail)
+            print('The dispersion correction setting for system1 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+            f.write('The dispersion correction setting for system1 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+    system1.addForce(MonteCarloBarostat(pressure,Temp,barostatInterval))
     integrator1 = LangevinIntegrator(Temp*kelvin, friction, 0.002*picoseconds)
     simulation1 = Simulation(top1.topology, system1, integrator1, platform1, properties1)
 
     # State 1: N-1
-    system2 = top2.createSystem(nonbondedMethod=PME, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=1E-7, rigidWater=True)
+    system2 = top2.createSystem(nonbondedMethod=nonbondedMethod, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=ewaldErrorTolerance, rigidWater=True)
+    for i, frc in enumerate(system2.getForces()):
+        if (isinstance(frc, NonbondedForce)):
+            frc.setUseDispersionCorrection(tail)
+            print('The dispersion correction setting for system2 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+            f.write('The dispersion correction setting for system2 is: {}.\n'.format(frc.getUseDispersionCorrection()))
+    system2.addForce(MonteCarloBarostat(pressure,Temp,barostatInterval))
     integrator2 = LangevinIntegrator(Temp*kelvin, friction, 0.002*picoseconds)
     simulation2 = Simulation(top2.topology, system2, integrator2, platform2, properties2)
 
 # Setup the FEP_Object
 method = 'OB' # 'OB' == Optimal-Bennetts; currently specified, but you actually call different methods below on the FEP_Object
 derivative = 'particle' # type of perturbation to perform
-traj_list = [traj_load] # trajectory objects from MDTraj
-thermo_files_list = [PotEne_Data] # IF you already have the potential energy data you can load in here. 
+
+if traj_file1 == None:
+    traj_list = [traj_load0] # trajectory objects from MDTraj
+    thermo_files_list = [PotEne_Data0] # IF you already have the potential energy data you can load in here. 
+else:
+    traj_list = [traj_load0,traj_load1] # trajectory objects from MDTraj
+    thermo_files_list = [PotEne_Data0,PotEne_Data1] # IF you already have the potential energy data you can load in here. 
 
 if CalcChemPot:
     # OpenMM simulation objects (might be memory intensive)
