@@ -13,7 +13,7 @@ import mdtraj.reporters
 import numpy as np
 import sys
 
-#sys.path.append('/home/mnguyen/bin/scripts/FEP/')
+sys.path.append('/home/mnguyen/bin/scripts/FEP/')
 
 import FEP_Module_NaCl_HOH_end as FEP
 
@@ -34,22 +34,23 @@ useGPU = False
 nonbondedMethod = PME
 tail = True
 nonbondedCutoff = 0.9*nanometers
-nThreads = 4
+nThreads = 6
 #FEP vars
 unit = 'kJ/mol' 
 resNames = ['NA+','CL-'] #name of residues to insert in each frame
 unit = 'kJ/Mol'
 nDraw =  1
-nInsert = 1
-nDelete = 1
+nInsert = 100
+nDelete = 100
 SetReRunRefState = True
 
 CalcChemPot = True
 CalcPressure = False
 CalcSurfaceTension = False
-ThermoSlice =  20
-TrajSlice = 20
+ThermoSlice =  1
+TrajSlice = 1
 Warmup = 0
+
 
 traj_file0 = '../NaCl5_water500_L2.5nm/trajectory298.dcd' # N-particle state
 top_file0 = 'NaCl5_water500_L2.5nm.pdb'
@@ -68,13 +69,13 @@ f.write('nonbonded method {}. \n'.format(nonbondedMethod))
 f.write('use dispersion correction {}. \n'.format(tail))
 
 ''' Platform specifications. '''
-# Change the argument below to "CPU" or "CUDA" or "CUDA"to specify a platform 
+# Change the argument below to "CPU" or "OpenCL" or "OpenCL"to specify a platform 
 if useGPU:
-    platform0 = Platform.getPlatformByName('CUDA') 
+    platform0 = Platform.getPlatformByName('OpenCL') 
     properties0 = {'DeviceIndex': '0', 'Precision': 'double'}
-    platform1 = Platform.getPlatformByName('CUDA') 
+    platform1 = Platform.getPlatformByName('OpenCL') 
     properties1 = {'DeviceIndex': '0', 'Precision': 'double'}
-    platform2 = Platform.getPlatformByName('CUDA') 
+    platform2 = Platform.getPlatformByName('OpenCL') 
     properties2 = {'DeviceIndex': '0', 'Precision': 'double'}
 else:
     platform0 = Platform.getPlatformByName('CPU')
@@ -119,6 +120,8 @@ if traj_file1 != None:
     print('Number of frames in trajectory: {}'.format(len(traj_load1)))
     print('Number of entries in thermo. file: {}'.format(len(PotEne_Data1)))
 
+print(PotEne_Data1[0:10])
+
 if len(traj_load0) != len(PotEne_Data0):
     print("WARNING: The number of entries in the trajectory and thermo. file do not match!")
 
@@ -159,7 +162,6 @@ if CalcChemPot:
 # Setup the FEP_Object
 method = 'OB' # 'OB' == Optimal-Bennetts; currently specified, but you actually call different methods below on the FEP_Object
 derivative = 'particle' # type of perturbation to perform
-
 if traj_file1 == None:
     traj_list = [traj_load0] # trajectory objects from MDTraj
     thermo_files_list = [PotEne_Data0] # IF you already have the potential energy data you can load in here. 
@@ -206,9 +208,11 @@ if CalcChemPot:
     FEP_Object.SetBennettsConstant(-33.8) # Initial guess, KJ/mole
     FEP_Object.Optimal_Bennetts() # Run optimal-Bennetts
     time2 = time.time()
+
+    
     # Report the free energy change in KJ/mole
     s = 'Excess chemical potential calculation for {}'.format(resNames)
-    s += '\nNumber of insertions: {}\nNumber of deletions: {}\nNumber of traj frames: {}'.format(nInsert,nDelete,nFrames)
+    s += '\nNumber of insertion data: {}\nNumber of deletion data: {}'.format(len(FEP_Object.dU_0to1),len(FEP_Object.dU_1to0))
     s += "\ndF: %4.4f +/- %2.5f %s"%(FEP_Object.dF, FEP_Object.dF_stderr,unit)
     s += "\nBennett's Constant: %4.4f %s"%(float(FEP_Object.dF),unit)
     s += "\nTake %5.3f hours to finish the calculation."%((time2-time1)/3600)
