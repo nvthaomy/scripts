@@ -44,6 +44,7 @@ nInsert = 100
 nDelete = 100
 SetReRunRefState = True
 
+TestPECal = True
 CalcChemPot = True
 CalcPressure = False
 CalcSurfaceTension = False
@@ -136,6 +137,18 @@ system0.addForce(MonteCarloBarostat(pressure,Temp,barostatInterval))
 integrator0 = LangevinIntegrator(Temp*kelvin, friction, 0.002*picoseconds)
 simulation0 = Simulation(top0.topology, system0, integrator0, platform0, properties0)
     
+#test potential energy
+if TestPECal:
+    print('Test error between rerun PE and PE from provided log file\nPElog PERerun %err')
+    for i in range(20):
+        box =  traj_load0[i].unitcell_vectors[0] 
+        simulation0.context.setPeriodicBoxVectors(box[0],box[1],box[2])
+        simulation0.context.setPositions(traj_load0[i].xyz[0]) 
+        simulation0.context.applyConstraints(constraintTolerance)
+        PE = simulation0.context.getState(getEnergy=True).getPotentialEnergy().value_in_unit(kilojoules_per_mole)
+        PE0 = PotEne_Data0[i]
+        print('%10.4f %10.4f %5.4f'%(PE0,PE,np.abs((PE-PE0)/PE0*100)))
+
 if CalcChemPot:
     # State 1: N+1
     system1 = top1.createSystem(nonbondedMethod=nonbondedMethod, nonbondedCutoff=nonbondedCutoff, ewaldErrorTolerance=ewaldErrorTolerance, rigidWater=True)
