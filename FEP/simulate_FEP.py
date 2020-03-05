@@ -108,7 +108,7 @@ traj_load0 = md.load(traj_file0,top=top_file0, stride=TrajSlice)
 traj_load0 = traj_load0[Warmup::]
 PotEne_Data0 = PotEne_Data0[Warmup::]
 nFrames0 = len(traj_load0)
-print(PotEne_Data0[0:10])
+#print(PotEne_Data0[0:10])
 
 print('Number of frames in trajectory: {}'.format(len(traj_load0)))
 print('Number of entries in thermo. file: {}'.format(len(PotEne_Data0)))
@@ -120,7 +120,7 @@ if traj_file1 != None:
     print('Number of frames in trajectory: {}'.format(len(traj_load1)))
     print('Number of entries in thermo. file: {}'.format(len(PotEne_Data1)))
 
-print(PotEne_Data1[0:10])
+#print(PotEne_Data1[0:10])
 
 if len(traj_load0) != len(PotEne_Data0):
     print("WARNING: The number of entries in the trajectory and thermo. file do not match!")
