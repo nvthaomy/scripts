@@ -77,7 +77,7 @@ def doStats(warmupdata,Data,doGraphs=False,doWriteStdout=False,graphFilenameStub
     Data_dcshift=Data-mean
     #DataNorm=np.sum(np.square(Data_dcshift))
     cor=np.correlate(Data_dcshift,Data_dcshift,mode='same')/unbiasedvar
-    autocor=cor[cor.size/2:]
+    autocor=cor[int(cor.size/2):]
     autocor=autocor/np.arange(nsamples-1,nsamples-1-autocor.size,-1) # Note -1 for 0-based indexing
 
     # Choose where to cutoff the autocorrelation time sum
@@ -111,16 +111,16 @@ def doStats(warmupdata,Data,doGraphs=False,doWriteStdout=False,graphFilenameStub
     #    j=j+1
 
     if doWriteStdout == True:
-        print "  - Mean                    = ",mean," +/- ",semcc
-        print "  - Equilibrated samples    = ",nsamples
-        print "  - Correlation time        = ",kappa
-        print "  - Effective # samples     = ",nsamples/kappa
-        print "  - Reduced-bias variance   = ",unbiasedvar
+        print ("  - Mean                    = ",mean," +/- ",semcc)
+        print ("  - Equilibrated samples    = ",nsamples)
+        print ("  - Correlation time        = ",kappa)
+        print ("  - Effective # samples     = ",nsamples/kappa)
+        print ("  - Reduced-bias variance   = ",unbiasedvar)
         # note that there is no unbiased estimator for the population standard deviation. We can use sqrt(var) as a indicative estimator.
-        print "  - S.D. (unbiased, biased) = ",np.sqrt(unbiasedvar),np.std(Data,ddof=0) # ddof is correction to 1/N...using ddof=1 returns regular reduced-bias estimator
-        print "  - Skewness                = ",skew
-        print "  - Kurtosis                = ",kurtosis
-        print "  - Min, Max                = ",min,max
+        print ("  - S.D. (unbiased, biased) = ",np.sqrt(unbiasedvar),np.std(Data,ddof=0)) # ddof is correction to 1/N...using ddof=1 returns regular reduced-bias estimator
+        print ("  - Skewness                = ",skew)
+        print ("  - Kurtosis                = ",kurtosis)
+        print ("  - Min, Max                = ",min,max)
         print  # Reduced bias estimator - test vs. above from sqrt(var)
 
     if doGraphs:
@@ -271,11 +271,11 @@ if __name__ == "__main__":
   if args.col != None:
     for i in args.col:
       if not args.quiet:
-        print "Processing column index {0}".format(i)
+        print ("Processing column index {0}".format(i))
       if args.autowarmup:
           warmup,Data,nwarmup = autoWarmupMSER(args.file, i)
           if not args.quiet:
-            print "Auto warmup detection with MSER-5 => ",nwarmup
+            print ("Auto warmup detection with MSER-5 => ",nwarmup)
       else:
           warmup,Data = extractData(args.file, i, args.warmup)
       # Do the statistics - if command line, force stdout output
@@ -285,12 +285,12 @@ if __name__ == "__main__":
   else:
     for i in args.observable:
       if not args.quiet:
-        print "Processing observable {0}".format(i)
+        print ("Processing observable {0}".format(i))
       column = decideColumn(args.file,i)
       if args.autowarmup:
           warmup,Data,nwarmup = autoWarmupMSER(args.file, column)
           if not args.quiet:
-            print "Auto warmup detection with MSER-5 => ",nwarmup
+            print ("Auto warmup detection with MSER-5 => ",nwarmup)
       else:
           warmup,Data = extractData(args.file, column, args.warmup)
       # Do the statistics - if command line, force stdout output

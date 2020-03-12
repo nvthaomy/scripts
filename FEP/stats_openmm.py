@@ -49,7 +49,7 @@ def extractData(filehandler,column,warmup):
     # Be sure we're at the beginning of the file
     filehandler.seek(0)
     # Read the file - First get all of the data
-    AllData=np.genfromtxt(filehandler,delimiter=',',comments='#')
+    AllData=np.genfromtxt(filehandler) #,delimiter=' ',comments='#')
     #print (AllData)
     # Copy to a 1D Numpy array for faster analysis
     Data1=AllData[:,column]
