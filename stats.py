@@ -96,7 +96,6 @@ def doStats(warmupdata,Data,doGraphs=False,doWriteStdout=False,graphFilenameStub
         kappa_cutoffdep[jc]=1+2*np.sum(autocor[1:jc])
     # Update the standard error of the mean for a correlation correction
     semcc=sem*np.sqrt(kappa)
-
     # Manual (non-Numpy) autocorrelation function for transparency - verified equal
     #j=0
     #cutoff=nsamples
