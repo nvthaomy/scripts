@@ -16,7 +16,7 @@ matplotlib.rc('axes', titlesize=7)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('coordfile',type=str, help="trajectory file")
-parser.add_argument('topfile',type=str, help="topology file")
+parser.add_argument('topfile', help="topology file")
 parser.add_argument('atom1', type=str, help='name of the 1st atom type')
 parser.add_argument('atom2', type=str, help='name of the 2nd atom type')
 parser.add_argument('-nbins',type=int, default=1000, help="Number of bins")
