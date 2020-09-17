@@ -55,7 +55,7 @@ def extractData(filehandler,column,warmup):
     # Check for NaN in the data
     if np.isnan(np.min(Data1)): # Note: min() propagates NaN. Checking result of reduction operator faster than creating a vector of results.
         sys.stderr.write("WARNING: NaN in data. Run diverged. Proceeding with bad samples removed.\n")
-        Data1=Data1[numpy.isfinite(Data)]
+        Data1=Data1[np.isfinite(Data)]
     # Check data size > warmup
     if Data1.size < warmup:
         sys.stderr.write("WARNING: Warmup length is greater than sample size. Reducing to warmup=0\n")

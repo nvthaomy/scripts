@@ -16,12 +16,13 @@ matplotlib.rc('axes', titlesize=7)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('coordfile',type=str, help="trajectory file")
-parser.add_argument('topfile',type=str, help="topology file")
+parser.add_argument('topfile', help="topology file")
 parser.add_argument('atom1', type=str, help='name of the 1st atom type')
 parser.add_argument('atom2', type=str, help='name of the 2nd atom type')
 parser.add_argument('-nbins',type=int, default=1000, help="Number of bins")
 parser.add_argument('-rmax',type=float, default=1., help="Max distance")
 parser.add_argument('-stride',type=int, default=1, help="stride")
+parser.add_argument('-w', type=int, default=0, help='warmup frames')
 args = parser.parse_args()
 #####
 coordfile = args.coordfile
@@ -31,9 +32,10 @@ atom2 = args.atom2
 nbins = args.nbins
 rmax = args.rmax
 stride = args.stride
-
+warmup = args.w
 print("... Loading Trajectory ...")
 traj = mdtraj.load(coordfile,top=topfile,stride=stride)
+traj = traj[warmup:]
 top = traj.topology
 print("... Done Loading ...")
 Lx,Ly,Lz = traj.unitcell_lengths[0,0], traj.unitcell_lengths[0,1], traj.unitcell_lengths[0,2] #assuming constant box shape
