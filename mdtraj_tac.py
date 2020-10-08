@@ -207,14 +207,14 @@ for frame in frames:
 
         # take projection of Rt on the new xy plane (substract the z component)
         Rtp = Rt - [0,0,Rt[2]]
-        fig,ax = plt.subplots(nrows=1, ncols=1, figsize=[3,3])
-        plt.plot(At[0],At[1],marker = 'o', label=chiral_name)
-        plt.plot(Cbbt[0],Cbbt[1],marker = 'o', label=Cbb_name)
-        plt.plot(Ht[0],Ht[1],marker = 'o', label=H_name)
-        plt.plot(Rt[0],Rt[1],marker = 'o', label=R_name)
-        plt.legend(loc='best',prop={'size':5})
+#        fig,ax = plt.subplots(nrows=1, ncols=1, figsize=[3,3])
+#        plt.plot(At[0],At[1],marker = 'o', label=chiral_name)
+#        plt.plot(Cbbt[0],Cbbt[1],marker = 'o', label=Cbb_name)
+#        plt.plot(Ht[0],Ht[1],marker = 'o', label=H_name)
+#        plt.plot(Rt[0],Rt[1],marker = 'o', label=R_name)
+#        plt.legend(loc='best',prop={'size':5})
         
-        x = [At[0],At[1],Cbbt[0],Cbbt[1],Ht[0],Ht[1],Rt[0],Rt[1]]
+#        x = [At[0],At[1],Cbbt[0],Cbbt[1],Ht[0],Ht[1],Rt[0],Rt[1]]
 #        plt.show()
         # get orientation of 3 points Ht, Cbbt, and Rtp
         X = np.cross(Ht-Cbbt,Rtp-Cbbt)[-1]
