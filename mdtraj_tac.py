@@ -7,7 +7,6 @@ Created on Wed Sep 16 21:36:10 2020
 """
 import mdtraj,matplotlib ,os, re
 import matplotlib.pyplot as plt
-import argparse
 import numpy as np
 
 showPlots = True
@@ -19,28 +18,6 @@ except KeyError:
 #plt.style.use('seaborn-dark')
 matplotlib.rc('font', size=7)
 matplotlib.rc('axes', titlesize=7)
-
-
-parser = argparse.ArgumentParser()
-parser.add_argument('coordfile',type=str, help="trajectory file")
-parser.add_argument('topfile', help="topology file")
-parser.add_argument('resrange', type=str, nargs = 2, help='resid of 1st and last residue of chain')
-parser.add_argument('-fr', type=int, nargs = '+', default = [-1], help = 'frames') 
-parser.add_argument('-topdat', type=str, help='if provided will make a new topology, text file of molecule pdbs (1st column) and number (2nd column) ')
-parser.add_argument('-nbins',type=int, default=1000, help="Number of bins")
-parser.add_argument('-stride',type=int, default=1, help="stride")
-parser.add_argument('-w', type=int, default=0, help='warmup frames')
-
-args = parser.parse_args()
-#####
-coordfile = args.coordfile
-topfile = args.topfile
-resrange= args.resrange
-frames = args.fr
-topdat = args.topdat
-nbins = args.nbins
-stride = args.stride
-warmup = args.w
 
 def MakeTop(topdat):
     file = open(topdat,'r')
@@ -143,102 +120,128 @@ def Transform(jx,jy,jz, X):
             T[j,i] = j_vec[j] @ i_vec[i]
     return T @ X
 
-chiral_name = 'CA'
-# other 3 atoms attached to chiral atom
-Cbb_name = 'CC' # C backbone attached to chiral
-H_name = 'HA1' # H attached to chiral
-R_name = 'CB' # atom of side group that directly attached to chiral
+def GetTac(coordfile,topfile, resrange, frames, topdat, stride, warmup):
+    chiral_name = 'CA'
+    # other 3 atoms attached to chiral atom
+    Cbb_name = 'CC' # C backbone attached to chiral
+    H_name = 'HA1' # H attached to chiral
+    R_name = 'CB' # atom of side group that directly attached to chiral
 
-print("... Loading Trajectory ...")
-traj = mdtraj.load(coordfile,top=topfile,stride=stride)
-traj = traj[warmup:]
-top = traj.topology
-if topdat:
-    top = MakeTop
-print("... Done Loading ...")
+    print("... Loading Trajectory ...")
+    traj = mdtraj.load(coordfile,top=topfile,stride=stride)
+    traj = traj[warmup:]
+    top = traj.topology
+    if topdat:
+        top = MakeTop(topdat)
+    print("... Done Loading ...")
 
-chiral_id = top.select('name {} and resid {} to {}'.format(chiral_name,*resrange))[1:-1] # the first and last residues don't have chiral center
-H_id = top.select('name {} and resid {} to {}'.format(H_name,*resrange))[1:-1]
-R_id = top.select('name {} and resid {} to {}'.format(R_name,*resrange))[1:-1]
-Cbb_id = top.select('name {} and resid {} to {}'.format(Cbb_name,*resrange)) # this will serve as C backbone of previous residue that bonded to a chiral atoms in chiral_id
+    chiral_id = top.select('name {} and resid {} to {}'.format(chiral_name,*resrange))[1:-1] # the first and last residues don't have chiral center
+    H_id = top.select('name {} and resid {} to {}'.format(H_name,*resrange))[1:-1]
+    R_id = top.select('name {} and resid {} to {}'.format(R_name,*resrange))[1:-1]
+    Cbb_id = top.select('name {} and resid {} to {}'.format(Cbb_name,*resrange)) # this will serve as C backbone of previous residue that bonded to a chiral atoms in chiral_id
 
-print('... Getting tacticity from residues {} to {}'.format(resrange[0],resrange[1]))
-tacticity_frames = []
-fm = []
-for frame in frames:
-    print('---Frame {}---'.format(frame))
-    orient = []
-    for i,A in enumerate(chiral_id):
-        Cbb = Cbb_id[i]
-        Cbb_next = Cbb_id[i+1]
-        H = H_id[i]
-        R = R_id[i]
-        
-        A = traj.xyz[frame, A, :]
-        Cbb = traj.xyz[frame, Cbb, :]
-        Cbb_next = traj.xyz[frame, Cbb_next, :]
-        H = traj.xyz[frame, H, :]
-        R = traj.xyz[frame, R, :]
-        #print('\nOriginal coordinates')
-        #print('{} {}'.format(chiral_name, A))
-        #print('{} {}'.format(Cbb_name, Cbb))
-        #print('{} {}'.format(H_name, H))
-        #print('{} {}'.format(R_name, R))
-        
-        jx,jy,jz = GetNewCoordinate(A,Cbb,H, Cbb_next) # the new coordinates will be that A, Cbb, H are on the xy plane (z component = 0)
-        
-        # after this, A, Cbb, and H will have the same z coordinate, just remove it for convenience
-        At = Transform(jx,jy,jz, A) 
-        Cbbt = Transform(jx,jy,jz, Cbb)
-        Ht = Transform(jx,jy,jz, H)
-        Rt = Transform(jx,jy,jz, R)
-        z = At[2]
-        At[2] -= z
-        Cbbt[2] -= z
-        Ht[2] -= z
-        Rt[2] -= z
-        
-        #print('\nNew coordinates {} {} {}'.format(jx,jy,jz))
-        #print('{} {}'.format(chiral_name, At))
-        #print('{} {}'.format(Cbb_name, Cbbt))
-        #print('{} {}'.format(H_name, Ht))
-        #print('{} {}'.format(R_name, Rt))
-        
+    print('... Getting tacticity from residues {} to {}'.format(resrange[0],resrange[1]))
+    tacticity_frames = []
+    fm = []
+    for frame in frames:
+        print('---Frame {}---'.format(frame))
+        orient = []
+        for i,A in enumerate(chiral_id):
+            Cbb = Cbb_id[i]
+            Cbb_next = Cbb_id[i+1]
+            H = H_id[i]
+            R = R_id[i]
+            
+            A = traj.xyz[frame, A, :]
+            Cbb = traj.xyz[frame, Cbb, :]
+            Cbb_next = traj.xyz[frame, Cbb_next, :]
+            H = traj.xyz[frame, H, :]
+            R = traj.xyz[frame, R, :]
+            #print('\nOriginal coordinates')
+            #print('{} {}'.format(chiral_name, A))
+            #print('{} {}'.format(Cbb_name, Cbb))
+            #print('{} {}'.format(H_name, H))
+            #print('{} {}'.format(R_name, R))
+            
+            jx,jy,jz = GetNewCoordinate(A,Cbb,H, Cbb_next) # the new coordinates will be that A, Cbb, H are on the xy plane (z component = 0)
+            
+            # after this, A, Cbb, and H will have the same z coordinate, just remove it for convenience
+            At = Transform(jx,jy,jz, A)
+            Cbbt = Transform(jx,jy,jz, Cbb)
+            Ht = Transform(jx,jy,jz, H)
+            Rt = Transform(jx,jy,jz, R)
+            z = At[2]
+            At[2] -= z
+            Cbbt[2] -= z
+            Ht[2] -= z
+            Rt[2] -= z
+            
+            #print('\nNew coordinates {} {} {}'.format(jx,jy,jz))
+            #print('{} {}'.format(chiral_name, At))
+            #print('{} {}'.format(Cbb_name, Cbbt))
+            #print('{} {}'.format(H_name, Ht))
+            #print('{} {}'.format(R_name, Rt))
+            
 
-        # take projection of Rt on the new xy plane (substract the z component)
-        Rtp = Rt - [0,0,Rt[2]]
-        fig,ax = plt.subplots(nrows=1, ncols=1, figsize=[3,3])
-        plt.plot(At[0],At[1],marker = 'o', label=chiral_name)
-        plt.plot(Cbbt[0],Cbbt[1],marker = 'o', label=Cbb_name)
-        plt.plot(Ht[0],Ht[1],marker = 'o', label=H_name)
-        plt.plot(Rt[0],Rt[1],marker = 'o', label=R_name)
-        plt.legend(loc='best',prop={'size':5})
+            # take projection of Rt on the new xy plane (substract the z component)
+            Rtp = Rt - [0,0,Rt[2]]
+    #        fig,ax = plt.subplots(nrows=1, ncols=1, figsize=[3,3])
+    #        plt.plot(At[0],At[1],marker = 'o', label=chiral_name)
+    #        plt.plot(Cbbt[0],Cbbt[1],marker = 'o', label=Cbb_name)
+    #        plt.plot(Ht[0],Ht[1],marker = 'o', label=H_name)
+    #        plt.plot(Rt[0],Rt[1],marker = 'o', label=R_name)
+    #        plt.legend(loc='best',prop={'size':5})
+    
+            x = [At[0],At[1],Cbbt[0],Cbbt[1],Ht[0],Ht[1],Rt[0],Rt[1]]
+    #        plt.show()
+            # get orientation of 3 points Ht, Cbbt, and Rtp
+            X = np.cross(Ht-Cbbt,Rtp-Cbbt)[-1]
+
+            if X > 0.0:
+                orient.append(1) # clockwise
+            elif X < 0.0:
+                orient.append(-1) # counterclockwise
+            else:
+                orient.append(0) # 3 points are on the same line
+
+        orient = np.array(orient)
+        print('orient {}'.format(orient))
+        #get tacticity from orientation
+        tac_tmp = orient[:-1] * orient[1:]
+        tac = []
+        for a in tac_tmp:
+            if a > 0.:
+                tac.append('m')
+            elif a < 0.:
+                tac.append('r')
+            else:
+                tac.append('nan')
+        fm.append(tac.count('m')/len(tac))
+        tacticity_frames.append(tac)
+        print('Tacticity: {}'.format(tac))
+        print('Meso fraction {}\n'.format(fm))
         
-        x = [At[0],At[1],Cbbt[0],Cbbt[1],Ht[0],Ht[1],Rt[0],Rt[1]]
-#        plt.show()
-        # get orientation of 3 points Ht, Cbbt, and Rtp
-        X = np.cross(Ht-Cbbt,Rtp-Cbbt)[-1]
+    return fm,tacticity_frames
 
-        if X > 0.0:
-            orient.append(1) # clockwise
-        elif X < 0.0:
-            orient.append(-1) # counterclockwise
-        else:
-            orient.append(0) # 3 points are on the same line 
-
-    orient = np.array(orient)
-    print('orient {}'.format(orient))
-    #get tacticity from orientation
-    tac_tmp = orient[:-1] * orient[1:]
-    tac = []
-    for a in tac_tmp:
-        if a > 0.:
-            tac.append('m')
-        elif a < 0.:
-            tac.append('r')   
-        else:
-            tac.append('nan')
-    fm.append(tac.count('m')/len(tac))    
-    tacticity_frames.append(tac)           
-    print('Tacticity: {}'.format(tac))
-    print('Meso fraction {}\n'.format(fm))
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('coordfile',type=str, help="trajectory file")
+    parser.add_argument('topfile', help="topology file")
+    parser.add_argument('resrange', type=str, nargs = 2, help='resid of 1st and last residue of chain')
+    parser.add_argument('-fr', type=int, nargs = '+', default = [-1], help = 'frames')
+    parser.add_argument('-topdat', type=str, help='if provided will make a new topology, text file of molecule pdbs (1st column) and number (2nd column) ')
+    parser.add_argument('-stride',type=int, default=1, help="stride")
+    parser.add_argument('-w', type=int, default=0, help='warmup frames')
+    
+    args = parser.parse_args()
+    #####
+    coordfile = args.coordfile
+    topfile = args.topfile
+    resrange= args.resrange
+    frames = args.fr
+    topdat = args.topdat
+    stride = args.stride
+    warmup = args.w
+    
+    GetTac(coordfile,topfile, resrange, frames, topdat, stride, warmup)
