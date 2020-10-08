@@ -134,6 +134,9 @@ def GetTac(coordfile,topfile, resrange, frames, topdat, stride, warmup):
     if topdat:
         top = MakeTop(topdat)
     print("... Done Loading ...")
+    
+    if resrange == None:
+        resrange = [0,top.n_residues]
 
     chiral_id = top.select('name {} and resid {} to {}'.format(chiral_name,*resrange))[1:-1] # the first and last residues don't have chiral center
     H_id = top.select('name {} and resid {} to {}'.format(H_name,*resrange))[1:-1]
@@ -228,7 +231,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('coordfile',type=str, help="trajectory file")
     parser.add_argument('topfile', help="topology file")
-    parser.add_argument('resrange', type=str, nargs = 2, help='resid of 1st and last residue of chain')
+    parser.add_argument('-res', type=str, nargs = 2, default = None, help='resid of 1st and last residue of chain')
     parser.add_argument('-fr', type=int, nargs = '+', default = [-1], help = 'frames')
     parser.add_argument('-topdat', type=str, help='if provided will make a new topology, text file of molecule pdbs (1st column) and number (2nd column) ')
     parser.add_argument('-stride',type=int, default=1, help="stride")
