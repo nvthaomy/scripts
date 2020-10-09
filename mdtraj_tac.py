@@ -241,7 +241,7 @@ if __name__ == "__main__":
     #####
     coordfile = args.coordfile
     topfile = args.topfile
-    resrange= args.resrange
+    resrange= args.res
     frames = args.fr
     topdat = args.topdat
     stride = args.stride
