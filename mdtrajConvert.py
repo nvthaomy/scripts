@@ -15,7 +15,16 @@ top = sys.argv[2]
 ext = sys.argv[3]
 stride = args.stride
 
-outTraj = '.'.join(traj.split('.')[:-1]) +'.'+ext 
+#outTraj = '.'.join(traj.split('.')[:-1]) +'.'+ext 
+outTraj = '.'.join(traj.split('.')[:-1]) 
+i=0
+if os.path.exists(outTraj+'.'+ext):
+    outTraj = outTraj + '_{}'.format(i)
+while os.path.exists(outTraj+'.'+ext):
+    i += 1
+    outTraj = '_'.join(outTraj.split('_')[:-1]) + '_{}'.format(i)
+outTraj = outTraj +'.'+ext
+
 print('Loading trajectory')
 traj = md.load(traj, top = top, stride = stride)
 print('\nDone loading, {} frames'.format(traj.n_frames))
