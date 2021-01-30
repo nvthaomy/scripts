@@ -8,13 +8,15 @@ parser = ap.ArgumentParser(description="mapping AA trajectory")
 parser.add_argument('top', type=str, help = "AA topology")
 parser.add_argument('ext', type=str, choices = ['lammpstrj','xyz','pdb','dcd'])
 parser.add_argument('-traj', type=str, nargs='+',  help = "AA trajectory")
-parser.add_argument('-stride', type=int, help = "stide", default = 1)
+parser.add_argument('-s', type=int,nargs='+', help = "stide")
 args = parser.parse_args()
 
 trajs = args.traj
 top = sys.argv[1]
 ext = sys.argv[2]
-stride = args.stride
+stride = args.s
+if not args.s:
+    stride = [1]*len(trajs)
 cwd = os. getcwd()
 
 outTraj = './traj_combined.'+ext 
@@ -22,7 +24,7 @@ trajDict = {}
 trajAll = 0
 print('Loading trajectory')
 for i,traj in enumerate(trajs):
-    t = md.load(traj, top = top, stride = stride)
+    t = md.load(traj, top = top, stride = stride[i])
     trajDict.update({'t{}'.format(i):t})
     if trajAll == 0:
         trajAll = t

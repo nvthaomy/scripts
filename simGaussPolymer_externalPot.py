@@ -30,8 +30,8 @@ import simtk.openmm.app.topology as topology
 #========================================
 #0) DEFINE ENERGY, LENGTH & MASS SCALES###
 #========================================
-epsilon  = 1 * kilojoules_per_mole
-sigma = 0.1 * nanometer
+epsilon  = 1. * kilojoules_per_mole
+sigma = 1. * nanometer
 mass = 12 * amu
 N_av = 6.022140857*10**23 /mole
 kb = 1.380649*10**(-23)*joules/kelvin* N_av #joules/kelvin/mol
